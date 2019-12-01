@@ -1,0 +1,12 @@
+    {
+    "project_id": "pure-stronghold-260309",
+    "image_name": "base-dm",
+    "source_image_family": "ubuntu-1604-lts",
+    "machine_type": "f1-micro",
+    "ssh_username": "appuser",
+    "image_description": "base docker machine image",
+    "disk_size": "10",
+    "disk_type":"pd-standard",
+    "tags":"docker-machines"
+    }
+
