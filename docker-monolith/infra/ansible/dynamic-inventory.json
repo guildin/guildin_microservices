@@ -1,0 +1,14 @@
+{
+    "all": {
+         "children":{
+        "dockerinst-1": {
+                 "hosts": {
+"130.211.107.3": null }
+},
+        "dockerinst-2": {
+                 "hosts": {
+"104.155.13.195": null }
+}
+             }
+       }
+}
