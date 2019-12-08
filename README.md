@@ -802,3 +802,357 @@ docker run -d --network=reddit --network-alias=post_db --network-alias=comment_d
 ...
 ```
 
+
+# Docker-4
+
+### План работ
+  * Работа с сетями в Docker
+  * Использование docker-compose
+
+## D4 подготовка
+
+Подключимся к docker-host на gce: ```eval $(docker-machine env docker-host)```
+
+### Грабли:
+```$ eval $(docker-machine env docker-host)
+Error checking TLS connection: Error checking and/or regenerating the certs: There was an error validating certificates for host "35.233.114.14:2376": x509: certificate is valid for 34.77.120.179, not 35.233.114.14
+You can attempt to regenerate them using 'docker-machine regenerate-certs [name]'.
+Be advised that this will trigger a Docker daemon restart which might stop running containers.
+```
+Смена адреса произошла в результате выключения-включения, ```docker-machine regenerate-certs docker-host``` эту проблему решает, но нужно держать в уме предупреждение об остановке запущенных контейнеров.
+
+## D4 Работа с сетью
+  * none
+  * host
+  * bridge
+
+### none-driver
+Используем joffotron/docker-net-tools (пакеты bind-tools, net-tools и curl уже на борту):
+```
+docker run -ti --rm --network none joffotron/docker-net-tools -c ifconfig
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+...
+```
+
+### host-driver
+```
+docker run -ti --rm --network none joffotron/docker-net-tools -c ifconfig
+br-cba38fb25497 Link encap:Ethernet  HWaddr 02:42:57:EA:90:44
+          inet addr:172.18.0.1  Bcast:172.18.255.255  Mask:255.255.0.0
+...
+docker0   Link encap:Ethernet  HWaddr 02:42:14:B2:24:B2
+          inet addr:172.17.0.1  Bcast:172.17.255.255  Mask:255.255.0.0
+...
+ens4      Link encap:Ethernet  HWaddr 42:01:0A:84:00:0B
+          inet addr:10.132.0.11  Bcast:10.132.0.11  Mask:255.255.255.255
+...
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+...
+```
+
+Запустим 4 раза контейнер:
+```docker run --network host -d nginx```
+docker ps выдает информацию о единственном запущенном контейнере, остальные в статусе Exited 
+```
+$ docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS               NAMES
+d17d800278c5        nginx               "nginx -g 'daemon of…"   56 seconds ago      Up 54 seconds                           intelligent_leakey
+```
+
+```
+$ docker ps -a
+CONTAINER ID        IMAGE                 COMMAND                  CREATED              STATUS                          PORTS               NAMES
+a30fa673f5ce        nginx                 "nginx -g 'daemon of…"   About a minute ago   Exited (1) About a minute ago                       jolly_benz
+7980e2af8602        nginx                 "nginx -g 'daemon of…"   About a minute ago   Exited (1) About a minute ago                       stupefied_robinson
+4d20f15d04c8        nginx                 "nginx -g 'daemon of…"   About a minute ago   Exited (1) About a minute ago                       epic_jennings
+d17d800278c5        nginx                 "nginx -g 'daemon of…"   About a minute ago   Up About a minute                                   intelligent_leakey
+...
+```
+Мы запустили контейнер с хостовой сетью. Очевидно, множество контейнеров с одним интерфейсом не может быть запущено одновременно, на один сокет три ведра не повесить.
+
+Запустим пару контейнеров с сетью none и проверим результат:
+```
+$ docker run --network none -d nginx
+3107c4456e4e862b8bb961d6a7c7a436c132cc067eed6283c35fd6ca3e9c2587
+$ docker run --network none -d nginx
+89787fdf7b5b5d413ed68cb4e331888aed379bf802c83c26323de9712c9df6de
+
+$ docker ps -a
+CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS                      PORTS               NAMES
+89787fdf7b5b        nginx                 "nginx -g 'daemon of…"   3 seconds ago       Up 2 seconds                                    xenodochial_fermi
+3107c4456e4e        nginx                 "nginx -g 'daemon of…"   5 seconds ago       Up 4 seconds                                    youthful_napier
+a30fa673f5ce        nginx                 "nginx -g 'daemon of…"   25 minutes ago      Exited (1) 25 minutes ago                       jolly_benz
+7980e2af8602        nginx                 "nginx -g 'daemon of…"   25 minutes ago      Exited (1) 25 minutes ago                       stupefied_robinson
+4d20f15d04c8        nginx                 "nginx -g 'daemon of…"   25 minutes ago      Exited (1) 25 minutes ago                       epic_jennings
+d17d800278c5        nginx                 "nginx -g 'daemon of…"   25 minutes ago      Up 25 minutes                                   intelligent_leakey
+...
+```
+
+Docker networks
+Зашеллимся на docker-host:      ```$ docker-machine ssh docker-host```
+Выполним на docker-host машине: ```$ sudo ln -s /var/run/docker/netns /var/run/netns```
+Теперь можно просматривать существующие в данный момент net-namespaces с помощью команды: ```$ sudo ip netns```
+
+Задание:
+Повторите запуски контейнеров с использованием драйверов none и host и посмотрите, как меняется список namespace-ов.
+Примечание: ip netns exec <namespace> <command> - позволит выполнять команды в выбранном namespace
+
+```
+docker-user@docker-host:~$ sudo docker ps -a
+CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS                        PORTS               NAMES
+5ea85ea8b7de        nginx                 "nginx -g 'daemon of…"   29 seconds ago      Exited (1) 25 seconds ago                         inspiring_feistel
+f1c34f8d68fa        nginx                 "nginx -g 'daemon of…"   31 seconds ago      Exited (1) 26 seconds ago                         strange_clarke
+e1b8f9f0182f        nginx                 "nginx -g 'daemon of…"   33 seconds ago      Up 31 seconds                                     gallant_easley
+418beccba701        nginx                 "nginx -g 'daemon of…"   39 seconds ago      Up 38 seconds                                     quizzical_ritchie
+116ca0c5ac21        nginx                 "nginx -g 'daemon of…"   45 seconds ago      Up 44 seconds                                     mystifying_bouman
+4037491d43f7        nginx                 "nginx -g 'daemon of…"   48 seconds ago      Up 46 seconds                                     elegant_dewdney
+```
+Запущены 3 контейнера с сетью none, контейнер с сетью host запущен один. Проверим ns
+```
+$ sudo ip netns
+ae1c605408da  #none
+69fc5fffdcbc  #none
+0698693e2485  #none
+default       #host
+```
+
+### bridge-network-driver
+Удалим предыдущую сеть
+```$ docker network rm reddit```
+Создадим новую - как bridge
+```$ docker network create reddit --driver bridge```
+
+```
+docker run -d --network=reddit --network-alias=post_db --network-alias=comment_db mongo:latest
+docker run -d --network=reddit --network-alias=post guildin/post:1.0
+docker run -d --network=reddit --network-alias=comment guildin/comment:1.0
+docker run -d --network=reddit -p 80:9292 guildin/ui:1.0
+```
+Я дико извиняюсь, но все работает. Потому что сетевые алиасы я указал, так что грабли на сей раз пролежали мимо. Но я запомню.
+
+Запустим наш проект в 2-х bridge сетях. Так , чтобы сервис ui не имел
+доступа к базе данных.
+
+Пропишем сети:
+```
+docker network create back_net --subnet=10.0.2.0/24
+docker network create front_net --subnet=10.0.1.0/24
+```
+
+Запустим контейнеры (подвох уже виден заранее):
+```
+docker run -d --network=back_net --network-alias=post_db --network-alias=comment_db mongo:latest
+docker run -d --network=back_net --network-alias=post guildin/post:1.0
+docker run -d --network=back_net --network-alias=comment guildin/comment:1.0
+docker run -d --network=front_net -p 80:9292 guildin/ui:1.0
+```
+ui, естественно, не умеет в back_net, так как при подключении можно указать лишь одну сеть. Тогда:
+```
+docker network connect front_net e3f5f0e114e2   # post
+docker network connect front_net 944f53d12515   # comment
+```
+
+_Все равно не работает. Дебажим:_
+- Проверим наличие у post и comment интерфейсов во front_net и back_net - есть.
+- ui и db в разных сетях, ок
+- ~network-alias - BINGO!!! Вот они, твои аденоиды, щас присадим.~ name. Люблю дурацкие ошибки.
+Фактически, "сейчас" растянулось на несколько человекочасов. Пока не обнаружил у zzzorander упоминание директивы --name, которая, на секундочку, была в методичке. 
+
+Итог:
+--name (одна штука) дает ссылку на контейнер, вместо генерируемой автоматически. Это имя может использовать как докер хост, так и сами его контейнеры.
+--network_alias (один или больше) дает ссылку на контейнер _и_ резолвит его для контейнеров в той же сети. Но не в другой, Карл.
+
+```
+docker run -d --network=back_net --network-alias=post_db --network-alias=comment_db mongo:latest
+docker run -d --network=back_net --name=post --network-alias=post guildin/post:1.0
+docker network connect front_net post
+docker run -d --name=comment --network=back_net --network-alias=comment guildin/comment:1.0
+docker network connect front_net comment
+docker run -d --network=front_net -p 80:9292 guildin/ui:1.0
+```
+
+### Сетевой стек Linux на docker-host
+
+Зайдем на docker-host и установим bridge-utils
+```
+$ docker-machine ssh docker-host
+...
+docker-user@docker-host:~$ sudo apt-get update && sudo apt-get install bridge-utils
+```
+
+Выполним ```docker network ls``` и посмотрим id сетей,созданных в рамках проекта.
+Выполним ```ifconfig | grep br``` чтобы увидеть bridge-интерфейсы
+Выполним ```brctl show br-b30030fff578``` (имя интерфейса, полученное в предыдущей команде), чтобы увидеть назначенные контейнерам виртуальные интерфейсы, например veth3cc5a90
+
+Исследуем iptables хоста
+```
+sudo iptables -nL -t nat
+Chain PREROUTING (policy ACCEPT)
+target     prot opt source               destination
+DOCKER     all  --  0.0.0.0/0            0.0.0.0/0            ADDRTYPE match dst-type LOCAL
+
+Chain INPUT (policy ACCEPT)
+target     prot opt source               destination
+
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination
+DOCKER     all  --  0.0.0.0/0           !127.0.0.0/8          ADDRTYPE match dst-type LOCAL
+
+Chain POSTROUTING (policy ACCEPT)
+target     prot opt source               destination
+MASQUERADE  all  --  10.0.1.0/24          0.0.0.0/0          # NAT узлов адресного пространства, назначенных контейнерам front_net
+MASQUERADE  all  --  10.0.2.0/24          0.0.0.0/0          # NAT узлов адресного пространства, назначенных контейнерам back_net
+MASQUERADE  all  --  172.17.0.0/16        0.0.0.0/0          # NAT узлов адресного пространства, назначенных контейнерам bridge
+MASQUERADE  tcp  --  10.0.1.4             10.0.1.4             tcp dpt:9292
+
+Chain DOCKER (2 references)
+target     prot opt source               destination
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0
+RETURN     all  --  0.0.0.0/0            0.0.0.0/0
+DNAT       tcp  --  0.0.0.0/0            0.0.0.0/0            tcp dpt:80 to:10.0.1.4:9292 # port mapping
+
+```
+
+Рассмотрим процесс docker-proxy:
+```
+$ ps ax | grep docker-proxy
+ 4670 pts/0    S+     0:00 grep --color=auto docker-proxy
+27574 ?        Sl     0:00 /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 80 -container-ip 10.0.1.4 -container-port 9292
+```
+Да, мне нравится http на 80м порту. Ничего не могу с собой поделать.
+
+## Docker-compose
+
+  * Установим docker-compose на локальную машину
+  * Соберем образы приложения reddit с помощью docker-compose
+  * Запустим приложение reddit с помощью docker-compose
+
+### Установка
+Установить docker-compose можно (отсюда)[https://docs.docker.com/compose/install/#install-compose] или с помощью:
+```
+$ pip install docker-compose
+...
+Cache entry deserialization failed, entry ignored
+...
+rm -rf ~/.cache/pip
+```
+После очистки кэша pip install отрабатывает штатно.
+
+создадим в src файл docker-compose.yml
+```
+version: '3.3'
+services:
+  post_db:
+    image: mongo:3.2
+    volumes:
+      - post_db:/data/db
+    networks:
+      - reddit
+  ui:
+    build: ./ui
+    image: ${USERNAME}/ui:1.0
+    ports:
+      - 80:9292/tcp
+    networks:
+      - reddit
+  post:
+    build: ./post-py
+    image: ${USERNAME}/post:1.0
+    networks:
+      - reddit
+  comment:
+    build: ./comment
+    image: ${USERNAME}/comment:1.0
+    networks:
+      - reddit
+
+volumes:
+  post_db:
+
+networks:
+  reddit:
+```
+
+docker-compose поддерживает интерполяцию (подстановку) переменных окружения.
+В данном случае это переменная USERNAME.
+Поэтому перед запуском необходимо экспортировать значения данных переменных окружения.
+
+Остановим контейнеры, запущенные на предыдущих шагах
+```$ docker kill $(docker ps -q)```
+
+Зададим в качестве username название учетки на docker hub
+```
+export USERNAME=guildin
+```
+
+Выполним команды:
+```
+$ docker-compose up -d
+Creating network "tmp_reddit" with the default driver
+Creating volume "tmp_post_db" with default driver
+...
+
+$ docker-compose ps
+    Name                  Command             State           Ports
+----------------------------------------------------------------------------
+tmp_comment_1   puma                          Up
+tmp_post_1      python3 post_app.py           Up
+tmp_post_db_1   docker-entrypoint.sh mongod   Up      27017/tcp
+tmp_ui_1        puma                          Up      0.0.0.0:9292->9292/tcp
+```
+
+Проверим работоспособность проекта, ок.
+
+### docker-compose.yml
+Задачи:
+1) Изменить docker-compose под кейс с множеством сетей, сетевых алиасов (стр 18).
+2) Параметризуйте с помощью переменных окружений:
+  * порт публикации сервиса ui
+  * версии сервисов
+  * возможно что-либо еще на ваше усмотрение
+3) Параметризованные параметры запишите в отдельный файл c расширением .env
+4) Без использования команд source и export docker-compose должен подхватить переменные из этого файла. Проверьте
+P.S. Файл .env должен быть в .gitignore, в репозитории закоммичен .env.example, из которого создается .env
+
+Имена  контейнерам можно задать с помощью ключа container_name.
+Кроме того, можно использовать переменную окружения COMPOSE_PROJECT_NAME
+
+## D4 Задание Ж
+Создайте docker-compose.override.yml для reddit проекта, который позволит
+  * Изменять код каждого из приложений, не выполняя сборку образа
+В docker-compose.override.yml указать параметры хранилища puma (методичка [docker-compose](https://docs.docker.com/compose/compose-file/) ).
+```
+    volumes:
+      - ./ui:/app
+```
+Несмотря на многочисленные примеры такого использования кода, это не работает, монтируемый том пуст. todo.
+
+  * Запускать puma для руби приложений в дебаг режиме с двумя воркерами (флаги --debug и -w 2)
+1. Запустить ```puma --debug -w 2``` через параметры в docker-compose.override.yml
+2. Проверить результат.
+Посмотрим имеющиеся контейнеры
+```
+comment-service   puma Up
+ui-service        puma Up      0.0.0.0:80->9292/tcp
+```
+Через директиву command добавим параметры запуска и пересоздадим контейнеры:
+```
+comment-service   puma --debug -w 2             Up
+ui-service        puma --debug -w 2             Up      0.0.0.0:80->9292/tcp
+```
+Проверим результат:
+```
+$ docker exec -it ui-service bash
+root@a0f02b78c52f:/app# ps auxf
+USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root       238  3.1  0.0  18236  3208 pts/0    Ss   21:47   0:00 bash
+root       251  0.0  0.0  34424  2768 pts/0    R+   21:47   0:00  \_ ps auxf
+root         1  0.1  0.4  69352 16040 ?        Ssl  21:43   0:00 puma 3.12.0 (tcp://0.0.0.0:9292) [app]
+root         7  0.3  1.0 669032 39784 ?        Sl   21:43   0:00 puma: cluster worker 0: 1 [app]
+root         9  0.3  1.0 669072 39632 ?        Sl   21:43   0:00 puma: cluster worker 1: 1 [app]
+```
+
+
