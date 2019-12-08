@@ -19,6 +19,7 @@ services:
 
     ports:
       - ${H_PORT_UI}:${C_PORT_UI}/tcp
+
     networks:
       front_net:
         aliases:
