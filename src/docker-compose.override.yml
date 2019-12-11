@@ -1,0 +1,61 @@
+version: '3.3'
+services:
+  post_db:
+    image: mongo:${IMG_MONGO_VERSION}
+    container_name: mongodb-service
+    volumes:
+      - post_db:/data/db
+    networks:
+      back_net:
+        aliases:
+          - post_db
+          - comment_db
+  ui:
+    build: ${IMGS_SRC_PATH}/ui
+    volumes:
+      - ./ui:/app
+    container_name: ui-service
+    image: ${USERNAME}/ui:${IMG_UI_VERSION}
+
+    ports:
+      - ${H_PORT_UI}:${C_PORT_UI}/tcp
+
+    networks:
+      front_net:
+        aliases:
+          - ui
+    command: puma --debug -w 2
+  post:
+    build: ${IMGS_SRC_PATH}/post-py
+    container_name: post-service
+    image: ${USERNAME}/post:${IMG_POST_VERSION}
+    networks:
+      back_net:
+        aliases:
+          - post
+      front_net:
+        aliases:
+          - post
+
+  comment:
+    build: ${IMGS_SRC_PATH}/comment
+    container_name: comment-service
+    image: ${USERNAME}/comment:${IMG_COMMENT_VERSION}
+    volumes:
+      - ${IMGS_SRC_PATH}/comment:/data
+    networks:
+      back_net:
+        aliases:
+        - comment
+      front_net:
+        aliases:
+        - comment
+    command: puma --debug -w 2
+
+volumes:
+  post_db:
+
+networks:
+  front_net:
+  back_net:
+
