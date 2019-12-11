@@ -1165,19 +1165,7 @@ root         9  0.3  1.0 669072 39632 ?        Sl   21:43   0:00 puma: cluster w
 [Требования к ВМ](https://docs.gitlab.com/ce/install/requirements.html)
 1 CPU / 3.75GB RAM / 50-100 GB HDD / Ubuntu 16.04
 
-Почему то захотелось немного простых вещей:
-```
-gcloud compute instances create gitlab-ci \
-  --boot-disk-size=50GB \
-  --image-family ubuntu-1604-lts \
-  --image-project=ubuntu-os-cloud \
-  --machine-type=n1-standard-1 \
-  --tags gitlab-ci \
-  --restart-on-failure
-gcloud compute firewall-rules create allow-https-gitlab --allow tcp:80,tcp:443 --source-tags=gitlab-ci --source-ranges=0.0.0.0/0
-gcloud compute instances add-metadata gitlab-ci --metadata-from-file ssh-keys=~/.ssh/gcp_id.rsa.pub
-```
-Впрочем, есть готовые шаблоны packer/terraform/ansible. 
+Используем стек packer/terraform/ansible для развертывания ВМ (тип машины изменим на n1-standard-1) 
 Экземляр развернут, установим gitlab ci:
 [Установка GITLAB CI через docker-compose](https://docs.gitlab.com/omnibus/docker/README.html#install-gitlab-using-docker-compose)
 ```
@@ -1352,3 +1340,31 @@ production:
 ```
 Директива only описывает список условий, которые должны быть истинны, чтобы job мог запуститься.
 Регулярное выражение слева означает, что должен стоять semver тэг в git, например, 2.4.10
+
+
+### GCI Динамические окружения
+Определим динамическое окружение для каждой ветки в репозитории, кроме ветки master
+```
+branch review:
+  stage: review
+  script: echo "Deploy to $CI_ENVIRONMENT_SLUG"
+  environment:
+    name: branch/$CI_COMMIT_REF_NAME
+    url: http://$CI_ENVIRONMENT_SLUG.example.com
+  only:
+    - branches
+  except:
+    - master
+```
+Теперь, на каждую ветку в git отличную от master Gitlab CI будет определять новое окружение.
+
+## GCI Задание Ж
+  * В шаг build добавить сборку контейнера с приложением reddit
+```docker build -t reddit:latest ./docker-monolith```
+  * Деплойте контейнер с reddit на созданный для ветки сервер
+Постановка задачи:
+- Установим докер-машину и прицепим наш докер хост к gcp. Это вообще рисковый шаг, но полет мысли то какой!
+- Создадим в branch review скрипт, создающий докер-хост с именем $CI_ENVIRONMENT_SLUG и все такое. Господи, только бы взлетело!
+
+
+
