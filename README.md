@@ -1155,4 +1155,200 @@ root         7  0.3  1.0 669032 39784 ?        Sl   21:43   0:00 puma: cluster w
 root         9  0.3  1.0 669072 39632 ?        Sl   21:43   0:00 puma: cluster worker 1: 1 [app]
 ```
 
+# Gitlab CI 1
 
+  * Подготовить инсталляцию Gitlab CI
+  * Подготовить репозиторий с кодом приложения
+  * Описать для приложения этапы пайплайна
+  * Определить окружения
+
+[Требования к ВМ](https://docs.gitlab.com/ce/install/requirements.html)
+1 CPU / 3.75GB RAM / 50-100 GB HDD / Ubuntu 16.04
+
+Почему то захотелось немного простых вещей:
+```
+gcloud compute instances create gitlab-ci \
+  --boot-disk-size=50GB \
+  --image-family ubuntu-1604-lts \
+  --image-project=ubuntu-os-cloud \
+  --machine-type=n1-standard-1 \
+  --tags gitlab-ci \
+  --restart-on-failure
+gcloud compute firewall-rules create allow-https-gitlab --allow tcp:80,tcp:443 --source-tags=gitlab-ci --source-ranges=0.0.0.0/0
+gcloud compute instances add-metadata gitlab-ci --metadata-from-file ssh-keys=~/.ssh/gcp_id.rsa.pub
+```
+Впрочем, есть готовые шаблоны packer/terraform/ansible. 
+Экземляр развернут, установим gitlab ci:
+[Установка GITLAB CI через docker-compose](https://docs.gitlab.com/omnibus/docker/README.html#install-gitlab-using-docker-compose)
+```
+$ cat docker-compose.yml 
+web:
+  image: 'gitlab/gitlab-ce:latest'
+  restart: always
+  hostname: 'gitlab.example.com'
+  environment:
+    GITLAB_OMNIBUS_CONFIG: |
+      external_url 'http://104.155.5.188'
+      # Add any other gitlab.rb configuration here, each on its own line
+  ports:
+    - '80:80'
+    - '443:443'
+    - '2222:22'
+  volumes:
+    - '/srv/gitlab/config:/etc/gitlab'
+    - '/srv/gitlab/logs:/var/log/gitlab'
+    - '/srv/gitlab/data:/var/opt/gitlab' 
+```
+Контейнер запущен, несколько минут требуется на запуск gitlab ci.
+Установим пароль для root (первый вход), через settings - signup restrictions отключена регистрация новых пользователей. 
+  * Каждый проект в Gitlab CI принадлежит к группе проектов
+  * В проекте может быть определен CI/CD пайплайн
+  * Задачи (jobs) входящие в пайплайн должны исполняться на runners
+
+Создадим группу и проект (homework / example) 
+Добавим remote в guildin_microservices^
+```
+git remote add gitlab http://gitlabci/homework/example.git
+git push gitlab gitlab-ci-1
+history | tail
+```
+
+## CI/CD Pipeline
+
+
+...
+токен раннера ygQXv1ZreQwBtdh2xJA9
+
+Выполним на сервере Gitlab CI команду:
+```
+sudo docker run -d --name gitlab-runner --restart always \
+-v /srv/gitlab-runner/config:/etc/gitlab-runner \
+-v /var/run/docker.sock:/var/run/docker.sock \
+gitlab/gitlab-runner:latest
+```
+
+```
+sudo docker exec -it gitlab-runner gitlab-runner register --run-untagged --locked=false
+Runtime platform                                    arch=amd64 os=linux pid=33 revision=577f813d version=12.5.0
+Running in system-mode.                            
+                                                   
+Please enter the gitlab-ci coordinator URL (e.g. https://gitlab.com/):
+http://35.233.34.183/
+Please enter the gitlab-ci token for this runner:
+ygQXv1ZreQwBtdh2xJA9
+Please enter the gitlab-ci description for this runner:
+[2bdc89760807]: my-runner
+Please enter the gitlab-ci tags for this runner (comma separated):
+linux,xenial,ubuntu,docker
+Registering runner... succeeded                     runner=ygQXv1Zr
+Please enter the executor: parallels, shell, ssh, virtualbox, docker-ssh+machine, kubernetes, custom, docker, docker-ssh, docker+machine:
+docker
+Please enter the default Docker image (e.g. ruby:2.6):
+alpine:latest
+Runner registered successfully. Feel free to start it, but if it's running already the config should be automatically reloaded! 
+```
+
+  * Добавим исходный код reddit в репозиторий
+```
+git clone https://github.com/express42/reddit.git && rm -rf ./reddit/.git
+git add reddit/
+git commit -m “Add reddit app”
+git push gitlab gitlab-ci-1
+```
+
+  * Изменим описание пайплайна: 
+```
+$ cat .gitlab-ci.yml 
+image: ruby:2.4.2
+
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  DATABASE_URL: 'mongodb://mongo/user_posts'
+
+before_script:
+  - cd reddit
+  - bundle install
+
+build_job:
+  stage: build
+  script:
+    - echo 'Building'
+
+test_unit_job:
+  stage: test
+  script:
+    - echo 'Testing 1'
+  services:
+    - mongo:latest
+  script:
+    - ruby simpletest.rb
+
+test_integration_job:
+  stage: test
+  script:
+    - echo 'Testing 2'
+
+deploy_job:
+  stage: deploy
+  script:
+    - echo 'Deploy'
+```
+
+  * В папке reddit создадим файл simpletest.rb [gist](https://gist.github.com/Nklya/d70ff7c6d1c02de8f18bcd049e904942)
+  * simpletest использует библиотеку rack-test, отсутствующую в reddit\Gemfile. Добавим ее туда: ```gem 'rack-test'```
+
+## GCI1 Окружения
+Вернемся к академическому пайплайну, который описывает шаги сборки, тестирования и деплоймента.
+До этого был создан job с названием deploy_job. Разберемся, что и куда будет задеплоено.
+
+### Dev-окружение
+Изменим пайплайн таким образом, чтобы deploy_job стал определением окружения dev, на которое условно будет выкатываться каждое изменение в коде проекта.
+1. Переименуем deploy stage в review.
+2. deploy_job заменим на deploy_dev_job
+3. Добавим environment
+
+В operations > environments появится определение первого окружения.
+
+### Staging и Production
+Если на dev мы можем выкатывать последнюю версию кода, то к production окружению это может быть неприменимо, если, конечно, вы не стремитесь к continuous deployment. Определим два новых этапа: stage и production, первый будет содержать job имитирующий выкатку на staging окружение, второй на production окружение.
+Определим эти job таким образом, чтобы они запускались с кнопки: ```when: manual``` – говорит о том, что job должен быть запущен человеком из UI
+```
+stages:
+  - build
+  - test
+  - review
+  - stage
+  - production
+...
+staging:
+  stage: stage
+  when: manual
+  script:
+    - echo 'Deploy'
+  environment:
+    name: stage
+    url: https://beta.example.com
+
+production:
+  stage: production
+  when: manual
+  script:
+    - echo 'Deploy'
+  environment:
+    name: production
+    url: https://example.com
+```
+
+Обычно, на production окружение выводится приложение с явно зафиксированной версией
+(например, 2.4.10).
+Добавим в описание pipeline директиву, которая не позволит нам выкатить на staging и production код, не помеченный с помощью тэга в git.
+```
+  only:
+    - /^\d+\.\d+\.\d+/
+```
+Директива only описывает список условий, которые должны быть истинны, чтобы job мог запуститься.
+Регулярное выражение слева означает, что должен стоять semver тэг в git, например, 2.4.10
