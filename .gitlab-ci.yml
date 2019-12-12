@@ -19,7 +19,7 @@ build_job:
   image: gcr.io/kaniko-project/executor:debug
   script:
     - echo 'Building'
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --no-push
+    - build --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --no-push
 
 
 test_unit_job:
