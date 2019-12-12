@@ -1373,7 +1373,19 @@ sudo docker run -d --name gitlab-runner --restart always \
 -v /var/run/docker.sock:/var/run/docker.sock \
 gcr.io/kaniko-project/executor:debug
 ```
-
+или так (курить! хрень получается!)
+```
+build_job:
+  stage: build
+  before_script: []
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: []
+  script:
+    - ls -la
+    - /kaniko/executor --context ./docker-monolith --dockerfile ./docker-monolith/Dockerfile --no-push
+    - build --context ./docker-monolith --dockerfile ./docker-monolith/Dockerfile --no-push
+```
   * Деплойте контейнер с reddit на созданный для ветки сервер
 Постановка задачи:
 - Установим докер-машину и прицепим наш докер хост к gcp. Это вообще рисковый шаг, но полет мысли то какой!
