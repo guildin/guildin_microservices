@@ -11,11 +11,12 @@ variables:
   DATABASE_URL: 'mongodb://mongo/user_posts'
 
 before_script:
-  - cd reddit
+  - cd $CI_PROJECT_DIR/reddit
   - bundle install
 
 build_job:
   stage: build
+  before_script: []
   image: mpcref/kaniko-for-gitlab
   script:
     - echo 'Building'
