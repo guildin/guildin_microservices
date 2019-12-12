@@ -17,7 +17,8 @@ before_script:
 build_job:
   stage: build
   before_script: []
-  image: gcr.io/kaniko-project/executor:debug
+  image:
+    name: gcr.io/kaniko-project/executor:debug
     entrypoint: []
   script:
     - ls -la
