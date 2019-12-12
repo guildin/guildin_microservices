@@ -11,7 +11,7 @@ variables:
   DATABASE_URL: 'mongodb://mongo/user_posts'
 
 before_script:
-  - cd $CI_PROJECT_DIR/reddit
+  - cd reddit
   - bundle install
 
 build_job:
@@ -76,3 +76,4 @@ production:
   environment:
     name: production
     url: https://example.com
+
