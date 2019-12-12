@@ -1202,9 +1202,11 @@ history | tail
 ```
 
 ## CI/CD Pipeline
-
-
-...
+Перейдем к определению CI/CD Pipeline для проекта.
+Чтобы сделать это нам нужно добавить в репозиторий файл [.gitlab-ci.yml](https://gist.github.com/Nklya/ab352648c32492e6e9b32440a79a5113)
+Теперь если перейти в раздел CI/CD мы увидим, что пайплайн готов к запуску, но находится в статусе pending / stuck так как у нас нет runner
+Запустим Runner и зарегистрируем его в интерактивном режиме
+Получим токен (CI/CD -> runners settings - Specific Runners)
 токен раннера ygQXv1ZreQwBtdh2xJA9
 
 Выполним на сервере Gitlab CI команду:
@@ -1215,6 +1217,7 @@ sudo docker run -d --name gitlab-runner --restart always \
 gitlab/gitlab-runner:latest
 ```
 
+После запуска Runner нужно зарегистрировать, это можно сделать командой:
 ```
 sudo docker exec -it gitlab-runner gitlab-runner register --run-untagged --locked=false
 Runtime platform                                    arch=amd64 os=linux pid=33 revision=577f813d version=12.5.0
