@@ -22,6 +22,7 @@ build_job:
     entrypoint: []
   script:
     - ls -la
+    - /kaniko/executor --context ./docker-monolith --dockerfile ./docker-monolith/Dockerfile --no-push
     - build --context ./docker-monolith --dockerfile ./docker-monolith/Dockerfile --no-push
 
 
