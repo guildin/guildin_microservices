@@ -1,0 +1,79 @@
+image: ruby:2.4.2
+
+stages:
+  - build
+  - test
+  - review
+  - stage
+  - production
+
+variables:
+  DATABASE_URL: 'mongodb://mongo/user_posts'
+
+before_script:
+  - cd reddit
+  - bundle install
+
+build_job:
+  stage: build
+  script:
+    - echo 'build in $CI_PROJECT_DIR' 
+
+test_unit_job:
+  stage: test
+  script:
+    - echo 'Testing 1'
+  services:
+    - mongo:latest
+  script:
+    - ruby simpletest.rb
+
+test_integration_job:
+  stage: test
+  script:
+    - echo 'Testing 2'
+
+deploy_dev_job:
+  stage: review
+  script:
+    - echo 'Deploy'
+  environment:
+    name: dev
+    url: http://dev.example.com
+
+branch review:
+  stage: review
+  script:
+    - echo "Creating $CI_ENVIRONMENT_SLUG to deploy..."
+    - docker-machine create --driver google google-machine-image https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/images/family/ubuntu-1604-lts --google-machine-type n1-standard-1 --google-zone europe-west1-b $CI_ENVIRONMENT_SLUG && eval $(docker-machine env $CI_ENVIRONMENT_SLUG) && docker run --name reddit -p 9292:9292 --network=host reddit:latest
+
+  environment:
+    name: branch/$CI_COMMIT_REF_NAME
+    url: http://$CI_ENVIRONMENT_SLUG.example.com
+  only:
+    - branches
+  except:
+    - master
+
+staging:
+  stage: stage
+  when: manual
+  only:
+    - /^\d+\.\d+\.\d+/
+  script:
+    - echo 'Deploy'
+  environment:
+    name: stage
+    url: https://beta.example.com
+
+production:
+  stage: production
+  when: manual
+  only:
+    - /^\d+\.\d+\.\d+/
+  script:
+    - echo 'Deploy'
+  environment:
+    name: production
+    url: https://example.com
+
