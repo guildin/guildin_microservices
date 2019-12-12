@@ -17,11 +17,15 @@ before_script:
 
 build_job:
   stage: build
+  before_script:
+    - echo 'Before script override for build_job'
+  image: docker:19.03.1
+  stage: build
   variables:
-    DOCKER_HOST: "tcp://172.17.0.1:2376"
+    DOCKER_HOST: unix:///var/run/docker.sock
   script:
     - echo 'Building'
-    - docker build -t reddit:latest ./docker-monolith
+    - docker info
 
 test_unit_job:
   stage: test
