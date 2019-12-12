@@ -16,15 +16,8 @@ before_script:
 
 build_job:
   stage: build
-  before_script: []
-  image:
-    name: gcr.io/kaniko-project/executor:debug
-    entrypoint: []
   script:
-    - ls -la
-    - /kaniko/executor --context ./docker-monolith --dockerfile ./docker-monolith/Dockerfile --no-push
-    - build --context ./docker-monolith --dockerfile ./docker-monolith/Dockerfile --no-push
-
+    - echo 'build in $CI_PROJECT_DIR' 
 
 test_unit_job:
   stage: test
