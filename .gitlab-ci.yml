@@ -18,7 +18,7 @@ build_job:
   stage: build
   before_script: []
   image: gcr.io/kaniko-project/executor:debug
-  entrypoint: []
+    entrypoint: []
   script:
     - ls -la
     - build --context ./docker-monolith --dockerfile ./docker-monolith/Dockerfile --no-push
