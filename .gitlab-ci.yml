@@ -20,7 +20,7 @@ build_job:
   image: mpcref/kaniko-for-gitlab
   script:
     - ls -la
-    - build --context docker-monolith --dockerfile docker-monolith/Dockerfile --no-push
+    - -v . build --context docker-monolith --dockerfile docker-monolith/Dockerfile --no-push
 
 
 test_unit_job:
