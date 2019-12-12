@@ -17,15 +17,15 @@ before_script:
 
 build_job:
   stage: build
-  before_script:
-    - echo 'Before script override for build_job'
-  image: docker:19.03.1
-  stage: build
-  variables:
-    DOCKER_HOST: unix:///var/run/docker.sock
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [\"\"]
   script:
     - echo 'Building'
-    - docker info
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+  only:
+    - tags
 
 test_unit_job:
   stage: test
