@@ -16,7 +16,7 @@ before_script:
 
 build_job:
   stage: build
-  image: gcr.io/kaniko-project/executor:debug
+  image: mpcref/kaniko-for-gitlab
   script:
     - echo 'Building'
     - build --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --no-push
