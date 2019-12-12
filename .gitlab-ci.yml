@@ -17,10 +17,10 @@ before_script:
 build_job:
   stage: build
   before_script: []
-  image: mpcref/kaniko-for-gitlab
+  image: gcr.io/kaniko-project/executor:debug
   script:
     - ls -la
-    - run --context ./docker-monolith --dockerfile ./docker-monolith/Dockerfile --no-push
+    - build --context ./docker-monolith --dockerfile ./docker-monolith/Dockerfile --no-push
 
 
 test_unit_job:
