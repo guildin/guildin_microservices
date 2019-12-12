@@ -19,7 +19,7 @@ build_job:
   before_script: []
   image: mpcref/kaniko-for-gitlab
   script:
-    - echo 'Building'
+    - ls -la
     - build --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --no-push
 
 
