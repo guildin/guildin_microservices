@@ -360,15 +360,11 @@ CONTAINER ID        IMAGE                     CREATED AT                      NA
 Прибьем оба контейнера, в GCE и локально, пересоздадим локальный по новой.
 
 Еще проверки:
-  * docker logs reddit -f
-  * docker exec -it reddit bash
-\ ps aux
-\ killall5 1
-  * docker start reddit
-  * docker stop reddit && docker rm reddit
-  * docker run --name reddit --rm -it <your-login>/otus-reddit:1.0 bash
-\ ps aux
-\ exit
+  * ```docker logs reddit -f``` Просмотр stdout контейнера в detached mode
+  * ```docker exec -it reddit bash ps aux killall5 1``` 
+  * ```docker start reddit```
+  * ```docker stop reddit && docker rm reddit``` останов и закрытие контейнера
+  * ```docker run --name reddit --rm -it dockerhubusername/otus-reddit:1.0 bash ps aux exit```
 
 И еще:
 ```
@@ -434,9 +430,8 @@ root@077ddf76b379:/# exit
 скопируем файл .gitignore из infra репозитория. Безопасность должна быть безопасной )))
 
 ## Выпечка образа.
-Все уже ~украдено~ запилено до нас. Сопрем плейбук [отсюда](https://gist.github.com/rbq/886587980894e98b23d0eee2a1d84933) (в девичестве docker.yaml, вообще не смешно пытаться делать его ручками):
-Конечный файл infra/ansible/packer_docker.yml
-С первого раза, конечно, не взлетело, но become: yes творит чудеса
+Все уже запилено до нас. Сопрем плейбук [отсюда](https://gist.github.com/rbq/886587980894e98b23d0eee2a1d84933) (в девичестве docker.yaml, вообще не смешно пытаться делать его ручками):
+Конечный файл infra/ansible/packer_docker.yml  (С первого раза, конечно, не взлетело, но become: yes творит чудеса)
 
 Выпечем образ base-dm
 ```
@@ -1392,4 +1387,317 @@ build_job:
 - Создадим в branch review скрипт, создающий докер-хост с именем $CI_ENVIRONMENT_SLUG и все такое. Господи, только бы взлетело!
 
 
+# monitoring-1
 
+## План
+•Prometheus: запуск, конфигурация, знакомство с Web UI 
+•Мониторинг состояния микросервисов
+•Сбор метри к хоста с использованием экспортера
+•Заданиясо *
+
+## Подготовка окружения
+Настроим брандмауэр для prometheus (9090) и puma (9292)
+```
+gcloud compute firewall-rules create prometheus-default --allow tcp:9090
+gcloud compute firewall-rules create puma-default --allow tcp:9292
+```
+
+# Запуск Prometheus
+
+Систему мониторинга Prometheus будем запускать внутри Docker контейнера. Для начального знакомства воспользуемся готовым образом с DockerHub.
+```docker run --rm -p 9090:9090 -d --name prometheus prometheus:v2.1.0```
+Откроем веб-интерфейс: 
+
+http://35.233.34.183:9090/graph
+
+Вкладка Console, которая сейчас активирована, выводит численное значение выражений. Вкладка Graph, левее от нее, строит график изменений значений метрик со временем.
+Если кликнем по "insert metric at cursor", то увидим, что Prometheus уже собирает какие-то метрики. По умолчанию он собирает статистику о своей работе. Выберем, например,
+метрику prometheus_build_info и нажмем Execute, чтобы посмотреть информацию о версии.
+```prometheus_build_info{branch="HEAD",goversion="go1.9.2",instance="localhost:9090",job="prometheus",revision="85f23d82a045d103ea7f3c89a91fba4a93e6367a",version="2.1.0"}```
+  * ```prometheus_build_info``` - название метрики
+  * ```{key="value",key="value",...}``` метаданные (лейблы). лейблы наряду с именем позволяют не ограничиваться одним лишь названием метрик для идетификации информации.
+  * 1 - собственно value. Численное значение или  NaN
+
+Targets
+Targets (цели) - представляют собой системы или процессы, за которыми следит Prometheus. Помним, что Prometheus является pull системой, поэтому он постоянно делает HTTP запросы на имеющиеся у него адреса (endpoints). Посмотрим текущий список целей:
+Endpoint | State |	Labels |	Last Scrape | Error
+http://localhost:9090/metrics |	up | instance="localhost:9090" | 2.226s ago
+
+В Targets сейчас мы видим только сам Prometheus. У каждой цели есть свой список адресов (endpoints), по которым следует обращаться для получения информации.
+В веб интерфейсе мы можем видеть состояние каждого endpoint-а (up); лейбл (instance="someURL"), который Prometheus автоматически добавляет к каждой метрике, получаемой с данного endpoint-а; а также время, прошедшее с момента последней операции сбора информации с endpoint-а.
+Также здесь отображаются ошибки при их наличии и можно отфильтровать только неживые таргеты.
+Обратите внимание на endpoint, который мы с вами видели на предыдущем слайде.
+Мы можем открыть страницу в веб браузере по данному HTTP пути (host:port/metrics), чтобы посмотреть, как выглядит та информация, которую собирает Prometheus.
+```
+http://35.233.34.183:9090/metrics
+...
+# HELP prometheus_build_info A metric with a constant '1' value labeled by version, revision, branch, and goversion from which prometheus was built.
+# TYPE prometheus_build_info gauge
+prometheus_build_info{branch="HEAD",goversion="go1.9.2",revision="85f23d82a045d103ea7f3c89a91fba4a93e6367a",version="2.1.0"} 1
+...
+```
+Остановим prometheus: ```docker stop prometheus```
+
+## Реструктуризация директорий
+1. Создадим директорию docker в корне репозитория и перенесем в нее
+директорию docker-monolith и файлы docker-compose.* и все .env (.env
+должен быть в .gitgnore), в репозиторий закоммичен .env.example, из
+которого создается .env
+2. Создадим в корне репозитория директорию monitoring. В ней будет
+хранится все, что относится к мониторингу
+3. Не забываем про .gitgnore и актуализируем записи при необходимости
+P.S. С этого момента сборка сервисов отделена от docker-compose,
+поэтому инструкции build можно удалить из docker-compose.yml.
+
+```vim monitoring/prometheus/Dockerfile```
+
+## Конфигурация
+Вся конфигурация Prometheus, в отличие от многих других систем мониторинга, происходит через файлы конфигурации и опции командной строки.
+Мы определим простой конфигурационный файл для сбора метрик с наших микросервисов: monitoring/prometheus/[prometheus.yml](https://gist.github.com/Nklya/bfe2d817f72bc6376fb7d05507e97a1d):
+```
+---
+global:
+  scrape_interval: '5s'
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+        - 'localhost:9090'
+
+  - job_name: 'ui'
+    static_configs:
+      - targets:
+        - 'ui:9292'
+
+  - job_name: 'comment'
+    static_configs:
+      - targets:
+        - 'comment:9292'
+```
+# Образы микросервисов
+В коде микросервисов есть healthcheck-и для проверки работоспособности приложения.
+Сборку образов теперь необходимо производить при помощи скриптов docker_build.sh, которые есть в директории каждого сервиса. С его помощью мы добавим информацию из Git в наш healthcheck
+```#!/bin/bash
+
+echo `git show --format="%h" HEAD | head -1` > build_info.txt
+echo `git rev-parse --abbrev-ref HEAD` >> build_info.txt
+
+docker build -t $USER_NAME/ui .
+```
+Ковырнем инструкции:
+```
+$ git show --format="%h" HEAD | head -1
+7195765
+$ git rev-parse --abbrev-ref HEAD
+monitoring-1
+```
+Соберем образы:
+```
+cd ../../src/ui && bash docker_build.sh
+cd ../post-py && bash docker_build.sh
+cd ../comment && bash docker_build.sh
+
+```
+
+Для ленивых (надо было самому написать!):
+```
+for i in ui post-py comment; do cd src/$i; bash docker_build.sh; cd -; done
+```
+
+Новый сервис в docker/docker-compose.yml:
+```
+  prometheus:
+    image: ${USERNAME}/prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention=1d'
+    networks:
+      back_net:
+        aliases:
+          - prometheus
+      front_net:
+        aliases:
+          - prometheus
+...
+volumes:
+  prometheus_data:
+```
+
+Развернем микросервисы: ```docker-compose up -d``` и проверим работоспособность. Готово.
+
+## Мониторинг состояния микросервисов
+
+Посмотрим список endpoint-ов, с которых собирает информацию Prometheus. Помните, что помимо самого Prometheus, мы определили в конфигурации мониторинг ui и comment сервисов. Endpoint-ы должны быть в состоянии UP.
+Healthcheck-и представляют собой проверки того, что наш сервис здоров и работает в ожидаемом режиме. В нашем случае healthcheck выполняется внутри кода микросервиса и выполняет проверку того, что все сервисы, от которых зависит его работа, ему доступны.
+Если требуемые для его работы сервисы здоровы, то healthcheck проверка возвращает status = 1, что соответсвует тому, что сам сервис здоров.
+Если один из нужных ему сервисов нездоров или недоступен, то проверка вернет status = 0
+
+Выберем метрику ui_health и построим график того, как менялось ее значение со временем. Помимо имени метрики и ее значения, мы также видим информацию в лейблах о версии приложения, комите
+и ветке кода в Git
+Видим, что статус UI сервиса был стабильно 1, что означает, что сервис работал. 
+Данный график оставим открытым.
+
+Остановим сервис post и проверим состояние ui_health. Статус разумеется, изменился. Посмотреть хелсчеки сервисов, от которых зависит данный хелсчек можно так: ui_health_
+Запустим post обратно и убедимся что ситуация исправилась.
+
+## Сбор метрик хоста
+
+Exporters
+Экспортер похож на вспомогательного агента для сбора метрик.
+В ситуациях, когда мы не можем реализовать отдачу метрик Prometheus в коде приложения, мы можем использовать экспортер, который будет транслировать метрики приложения или системы в формате доступном для чтения Prometheus.
+  * Программа, которая делает метрики доступными для сбора Prometheus
+  * Дает возможность конвертировать метрики в нужный для Prometheus формат
+  * Используется когда нельзя поменять код приложения
+  * Примеры: PostgreSQL, RabbitMQ, Nginx, Node exporter, cAdvisor
+
+## Node exporter
+
+Воспользуемся Node экспортер для сбора и отправки информации о докер хосте в Prometheus.
+В docker-compose.yml:
+```
+services:
+  node-exporter:
+    image: prom/node-exporter:v0.15.2
+    user: root
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($$|/)"'
+```
+
+Проверим отображение информации и ее смену в результате, например, повышения нагрузки.
+
+## M1 Задание Ж
+
+### Мониторинг MongoDB
+
+Добавьте в Prometheus мониторинг MongoDB с использованием необходимого экспортера.
+• Версию образа экспортера нужно фиксировать на последнюю стабильную
+• Если будете добавлять для него Dockerfile, он должен быть в директории monitoring, а не в корне репозитория.
+
+
+сборка образа экспортера (percona)
+```
+git clone https://github.com/percona/mongodb_exporter.git
+cd mongodb_exporter/
+make docker
+```
+В docker-compose.yml описаны параметры контейнера:
+```
+  mongodb-exporter:
+    build:
+      ../../mongodb_exporter
+    image: mongodb-exporter:${IMG_MONGODB_EXPORTER}
+    container_name: mongodb-exporter
+    networks:
+      back_net:
+        aliases:
+          - mongodb-exporter
+    environment:
+      MONGODB_URI: ${MONGODB_URI}
+```
+Примечание: MONGODB_URI='mongodb://mongodb-service:27017'
+Когда нужно будет атворизоваться на субд, в env также укажем HTTP_AUTH='user:password'. Нет, не укажем, нечего хранить это в открытом виде. Думать.
+
+В prometheus.yml добавил job:
+```
+  - job_name: 'mongodb-exporter'
+    static_configs:
+      - targets:
+        - 'mongodb-exporter:9216'
+```
+...и пересобрал образ prometheus.
+
+### Мониторинг веб-служб
+
+Добавьте в Prometheus мониторинг сервисов comment, post, ui с помощью blackbox экспортера.
+Blackbox exporter позволяет реализовать для Prometheus мониторинг по принципу черного ящика. Т.е. например мы можем проверить отвечает ли сервис по http, или принимает ли соединения порт.
+• Версию образа экспортера нужно фиксировать на последнюю стабильную.
+• Если будете добавлять для него Dockerfile, он должен быть в директории monitoring, а не в корне репозитория.
+Вместо blackbox_exporter можете попробовать использовать Cloudprober от Google. (todo - сделать обязательно!)
+
+### Реализация
+1. ```mkdir monitoring/blackbox_exporter && cd monitoring/blackbox_exporter```
+
+2. ```wget https://github.com/prometheus/blackbox_exporter/releases/download/v0.16.0/blackbox_exporter-0.16.0.linux-amd64.tar.gz && tar xzfv blackbox_exporter-0.16.0.linux-amd64.tar.gz```
+
+3. Dockerfile:
+```
+FROM        quay.io/prometheus/busybox:latest
+MAINTAINER  The Prometheus Authors <prometheus-developers@googlegroups.com>
+
+COPY blackbox_exporter  /bin/blackbox_exporter
+COPY blackbox.yml       /etc/blackbox_exporter/config.yml
+
+EXPOSE      9115
+ENTRYPOINT  [ "/bin/blackbox_exporter" ]
+CMD         [ "-config.file=/etc/blackbox_exporter/config.yml" ]
+```
+
+4. prometheus.yml
+```
+...
+  blackbox-exporter:
+    container_name: blackbox-exporter
+    image: ${USERNAME}/blackbox_exporter:${BLACKBOX_EXPORTER_VERSION}
+    ports:
+      - 9115:9115/tcp
+    networks:
+      front_net:
+        aliases:
+        - blackbox-exporter
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml' 
+...
+```
+
+5. ```docker build -t guildin/blackbox_exporter:0.16.0 .```
+6. ```docker-compose up -d blackbox-exporter```
+PS прометея нужно пересобрать, конечно. А лучше вынести ему конфиг в отдельный volume
+
+### Makefile
+Как вы могли заметить, количество компонент, для которых необходимо
+делать билд образов, растет. И уже сейчас делать это вручную не очень
+удобно.
+Можно было бы конечно написать скрипт для автоматизации таких действий.
+Но гораздо лучше для этого использовать Makefile.
+Задание: Напишите Makefile, который в минимальном варианте умеет:
+1. Билдить любой или все образы, которые сейчас используются
+2. Умеет пушить их в докер хаб
+Дополнительно можете реализовать любый сценарии, которые вам кажутся
+полезными.
+
+### Реализация
+Ох ты прелесть какая!
+Только параметризовать долго)
+В Makefile записал инструкции вида:
+build
+```
+build_prom:
+	cd ${PATH_PROMETHEUS_SRC} && bash ./docker_build.sh . 
+#docker build -t ${USER_NAME}/prometheus:${PROMETHEUS_VERSION} .
+```
+
+Здесь прошу отметить, нужно ли:
+  * использовать первый вариант, чтобы генерился файл build-info.txt и ставился тег latest
+  * использовать закомментированный вариант, чтобы чтобы сборка тегировалась номером версии указанным в .env
+  * и генерить файл build-info.txt и ставить статический тег версии
+
+...инструкции build_* собраны в кучу в инструкции build_mon1
+
+push
+```
+push_comment:
+	docker push ${USER_NAME}/comment
+```
+Аналогично, все собрано в кучу в инструкции push_mon1

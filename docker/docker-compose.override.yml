@@ -14,8 +14,10 @@ services:
     build: ${IMGS_SRC_PATH}/ui
     container_name: ui-service
     image: ${USERNAME}/ui:${IMG_UI_VERSION}
+
     ports:
       - ${H_PORT_UI}:${C_PORT_UI}/tcp
+
     networks:
       front_net:
         aliases:
@@ -36,6 +38,8 @@ services:
     build: ${IMGS_SRC_PATH}/comment
     container_name: comment-service
     image: ${USERNAME}/comment:${IMG_COMMENT_VERSION}
+    volumes:
+      - ${IMGS_SRC_PATH}/comment:/data
     networks:
       back_net:
         aliases:
@@ -50,5 +54,4 @@ volumes:
 networks:
   front_net:
   back_net:
-
 
