@@ -1,9 +1,0 @@
-plugin: gcp_compute
-auth_kind: serviceaccount
-service_account_file: "~/.ssh/docker-54797d8b6c7c.json"
-regions:
-  - eu-west1-b
-projects:
-  - pure-stronghold-260309
-hostnames:
-  - name #public_ip # Из какого тега забрать имя хоста

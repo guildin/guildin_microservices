@@ -8,8 +8,14 @@ guildin microservices repository
 
 | [Docker-2](#docker-2) | [Docker GCE](#docker-gce) | [D2 Ж](#d2-ж) | [D2 Задание Ж infra](#d2-задание-ж-infra) |
 | --- | --- | --- | --- |
-| [Docker-3](#docker-3) | [Docker GCE](#docker-gce) | [D3 Задание Ж](#d3-задание-ж) | [D2 Задание Ж infra](#d2-задание-ж-infra) |
+| [Docker-3](#docker-3) | [D3 prerequisites](#d3-prerequisites) | [D3 Задание Ж](#d3-задание-ж) | [D3 Задание Ж2](#d3-задание-ж2) |
 | --- | --- | --- | --- |
+| [Docker-4](#docker-4) | [D4 Работа с сетью](#d4-работа-с-сетью) | [Docker-compose](#docker-compose) | [D4 Задание Ж](#d4-задание-ж) |
+| --- | --- | --- | --- |
+| [Gitlab CI 1](#gitlab-ci-1) | [CI/CD Pipeline](#ci/cd-pipeline) | [GCI1 Окружения](#gci1-окружения) | [GCI Задание Ж](#gci-задание-ж) |
+| --- | --- | --- | --- |
+| [Monitoring-1](#monitoring-1) | [Запуск Prometheus](#запуск-prometheus) | [Образы микросервисов](#образы-микросервисов) | [M1 Задание Ж](#m1-задание-ж) |
+
 
 # Docker-2
 
