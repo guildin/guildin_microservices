@@ -11,8 +11,6 @@ services:
           - post_db
           - comment_db
   mongodb-exporter:
-    build:
-      ../../mongodb_exporter
     image: mongodb-exporter:${IMG_MONGODB_EXPORTER}
     container_name: mongodb-exporter
     networks:
