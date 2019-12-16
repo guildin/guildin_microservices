@@ -1,0 +1,108 @@
+version: '3.3'
+services:
+  post_db:
+    image: mongo:${IMG_MONGO_VERSION}
+    container_name: mongodb-service
+    volumes:
+      - post_db:/data/db
+    networks:
+      back_net:
+        aliases:
+          - post_db
+          - comment_db
+  mongodb-exporter:
+    image: mongodb-exporter:${IMG_MONGODB_EXPORTER}
+    container_name: mongodb-exporter
+    networks:
+      back_net:
+        aliases:
+          - mongodb-exporter
+    environment:
+      MONGODB_URI: ${MONGODB_URI}
+  ui:
+    container_name: ui-service
+    image: ${USERNAME}/ui:${IMG_UI_VERSION}
+    ports:
+      - ${H_PORT_UI}:${C_PORT_UI}/tcp
+    networks:
+      front_net:
+        aliases:
+          - ui
+  post:
+    container_name: post-service
+    image: ${USERNAME}/post:${IMG_POST_VERSION}
+    networks:
+      back_net:
+        aliases:
+          - post
+      front_net:
+        aliases:
+          - post
+
+  comment:
+    container_name: comment-service
+    image: ${USERNAME}/comment:${IMG_COMMENT_VERSION}
+    networks:
+      back_net:
+        aliases:
+        - comment
+      front_net:
+        aliases:
+        - comment
+
+  prometheus:
+    build:
+      ../monitoring/prometheus
+    image: ${USERNAME}/prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention=1d'
+    networks:
+      back_net:
+        aliases:
+          - prometheus
+      front_net:
+        aliases:
+          - prometheus
+  node-exporter:
+    image: prom/node-exporter:v0.15.2
+    user: root
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($$|/)"'
+    networks:
+      back_net:
+        aliases:
+        - node-exporter
+
+  blackbox-exporter:
+    container_name: blackbox-exporter
+    image: ${USERNAME}/blackbox_exporter:${BLACKBOX_EXPORTER_VERSION}
+    ports:
+      - 9115:9115/tcp
+    networks:
+      front_net:
+        aliases:
+        - blackbox-exporter
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'    
+
+volumes:
+  post_db:
+  prometheus_data:
+
+networks:
+  front_net:
+  back_net:
+
+

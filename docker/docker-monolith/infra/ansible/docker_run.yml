@@ -1,0 +1,11 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+  - name: Start container, connect to network and link
+    docker_container:
+      name: reddit
+      image: guildin/otus-reddit:1.0
+      ports:
+      - "80:9292"
+

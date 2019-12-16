@@ -1,0 +1,179 @@
+{
+    "_meta": {
+        "hostvars": {
+            "docker-inst-1": {
+                "canIpForward": false, 
+                "cpuPlatform": "Intel Haswell", 
+                "creationTimestamp": "2019-11-30T17:30:39.189-08:00", 
+                "deletionProtection": false, 
+                "disks": [
+                    {
+                        "autoDelete": true, 
+                        "boot": true, 
+                        "deviceName": "persistent-disk-0", 
+                        "guestOsFeatures": [
+                            {
+                                "type": "VIRTIO_SCSI_MULTIQUEUE"
+                            }
+                        ], 
+                        "index": 0, 
+                        "interface": "SCSI", 
+                        "kind": "compute#attachedDisk", 
+                        "licenses": [
+                            "https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/licenses/ubuntu-1604-xenial"
+                        ], 
+                        "mode": "READ_WRITE", 
+                        "source": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/zones/europe-west1-b/disks/docker-inst-1", 
+                        "type": "PERSISTENT"
+                    }
+                ], 
+                "id": "1634070883206080849", 
+                "image": null, 
+                "kind": "compute#instance", 
+                "labelFingerprint": "42WmSpB8rSM=", 
+                "machineType": "f1-micro", 
+                "machineType_selflink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/zones/europe-west1-b/machineTypes/f1-micro", 
+                "metadata": {
+                    "ssh-keys": "appuser:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCalTymQ4pFKxwSZVje5LESHqX070fgD2z5Vq6G40CvuHBTlXzPbb01T8vq5QCCzIrzPpRB+TcR4HGmnnMI1z0oB2qSUEpPZJs9nABsT1iP1waknuB1kwWSPnzx8gHkWfBCTbkoM7xsRReD1FVsnto217Z1WFAcS1f5VvAH2u+/chNB3gynKv96khW4w4eDjByV3ezTL1qEF6NYbLJat2zaqIySQ3ObXgmkZK+OWtCvXbGk5hPmpjajctsNSxaYfQSpBM1Vo7ZW0+ySt/1Y5wAlUcG0YlDVFWtI6+VhOke/eWIWsVlXoOM3hrNkybWnVkaPhy1ssnSQAA3fnQYFdGMIsss61EckDBhUy2uc+TKbPjTmjBOlrDZuq9bnIhxU5ZTOmFTgbo+aSOowX/Kzk+Wm8ysI3aKmPypcPp95SRVdTg6f1xXbhJxpxHhYEOJaDRdpTN9FlE2n/B1fDU0Pp1CnWiYvav6VVs41JX/2yDrjx7Dj72PfnianHTf68SC8wv0R35l0IYf9x5XFE633wmmDWiQnogvQp+hMrqXPTzh1dSjnNBdZUacfH/N3dfheX2LkMPXPjRJukWxN7EZ1SlWbpYpond+XxmFKx7LYVt40VuDrEkBB8SzXkE1oOphNOa/PXrXYzPQmVLcftzbG6X2LVACVyPihFpEKfebF7AThVQ== atikhonov.gcp@gmail.com\n"
+                }, 
+                "name": "docker-inst-1", 
+                "networkInterfaces": [
+                    {
+                        "accessConfigs": [
+                            {
+                                "kind": "compute#accessConfig", 
+                                "name": "external-nat", 
+                                "natIP": "130.211.107.3", 
+                                "networkTier": "PREMIUM", 
+                                "type": "ONE_TO_ONE_NAT"
+                            }
+                        ], 
+                        "fingerprint": "o_i0ZmuyPaw=", 
+                        "kind": "compute#networkInterface", 
+                        "name": "nic0", 
+                        "network": {
+                            "name": "default", 
+                            "region": "global", 
+                            "selfLink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/global/networks/default"
+                        }, 
+                        "networkIP": "10.132.0.8", 
+                        "subnetwork": {
+                            "name": "default", 
+                            "region": "europe-west1", 
+                            "selfLink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/regions/europe-west1/subnetworks/default"
+                        }
+                    }
+                ], 
+                "project": "pure-stronghold-260309", 
+                "scheduling": {
+                    "automaticRestart": true, 
+                    "onHostMaintenance": "MIGRATE", 
+                    "preemptible": false
+                }, 
+                "selfLink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/zones/europe-west1-b/instances/docker-inst-1", 
+                "startRestricted": false, 
+                "status": "RUNNING", 
+                "tags": {
+                    "fingerprint": "DYuTNhd7XtU=", 
+                    "items": [
+                        "docker-machines"
+                    ]
+                }, 
+                "zone": "europe-west1-b", 
+                "zone_selflink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/zones/europe-west1-b"
+            }, 
+            "docker-inst-2": {
+                "canIpForward": false, 
+                "cpuPlatform": "Intel Haswell", 
+                "creationTimestamp": "2019-11-30T17:30:39.198-08:00", 
+                "deletionProtection": false, 
+                "disks": [
+                    {
+                        "autoDelete": true, 
+                        "boot": true, 
+                        "deviceName": "persistent-disk-0", 
+                        "guestOsFeatures": [
+                            {
+                                "type": "VIRTIO_SCSI_MULTIQUEUE"
+                            }
+                        ], 
+                        "index": 0, 
+                        "interface": "SCSI", 
+                        "kind": "compute#attachedDisk", 
+                        "licenses": [
+                            "https://www.googleapis.com/compute/v1/projects/ubuntu-os-cloud/global/licenses/ubuntu-1604-xenial"
+                        ], 
+                        "mode": "READ_WRITE", 
+                        "source": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/zones/europe-west1-b/disks/docker-inst-2", 
+                        "type": "PERSISTENT"
+                    }
+                ], 
+                "id": "1420966975484373329", 
+                "image": null, 
+                "kind": "compute#instance", 
+                "labelFingerprint": "42WmSpB8rSM=", 
+                "machineType": "f1-micro", 
+                "machineType_selflink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/zones/europe-west1-b/machineTypes/f1-micro", 
+                "metadata": {
+                    "ssh-keys": "appuser:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQCalTymQ4pFKxwSZVje5LESHqX070fgD2z5Vq6G40CvuHBTlXzPbb01T8vq5QCCzIrzPpRB+TcR4HGmnnMI1z0oB2qSUEpPZJs9nABsT1iP1waknuB1kwWSPnzx8gHkWfBCTbkoM7xsRReD1FVsnto217Z1WFAcS1f5VvAH2u+/chNB3gynKv96khW4w4eDjByV3ezTL1qEF6NYbLJat2zaqIySQ3ObXgmkZK+OWtCvXbGk5hPmpjajctsNSxaYfQSpBM1Vo7ZW0+ySt/1Y5wAlUcG0YlDVFWtI6+VhOke/eWIWsVlXoOM3hrNkybWnVkaPhy1ssnSQAA3fnQYFdGMIsss61EckDBhUy2uc+TKbPjTmjBOlrDZuq9bnIhxU5ZTOmFTgbo+aSOowX/Kzk+Wm8ysI3aKmPypcPp95SRVdTg6f1xXbhJxpxHhYEOJaDRdpTN9FlE2n/B1fDU0Pp1CnWiYvav6VVs41JX/2yDrjx7Dj72PfnianHTf68SC8wv0R35l0IYf9x5XFE633wmmDWiQnogvQp+hMrqXPTzh1dSjnNBdZUacfH/N3dfheX2LkMPXPjRJukWxN7EZ1SlWbpYpond+XxmFKx7LYVt40VuDrEkBB8SzXkE1oOphNOa/PXrXYzPQmVLcftzbG6X2LVACVyPihFpEKfebF7AThVQ== atikhonov.gcp@gmail.com\n"
+                }, 
+                "name": "docker-inst-2", 
+                "networkInterfaces": [
+                    {
+                        "accessConfigs": [
+                            {
+                                "kind": "compute#accessConfig", 
+                                "name": "external-nat", 
+                                "natIP": "104.155.13.195", 
+                                "networkTier": "PREMIUM", 
+                                "type": "ONE_TO_ONE_NAT"
+                            }
+                        ], 
+                        "fingerprint": "nU7bSrTI1AY=", 
+                        "kind": "compute#networkInterface", 
+                        "name": "nic0", 
+                        "network": {
+                            "name": "default", 
+                            "region": "global", 
+                            "selfLink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/global/networks/default"
+                        }, 
+                        "networkIP": "10.132.0.9", 
+                        "subnetwork": {
+                            "name": "default", 
+                            "region": "europe-west1", 
+                            "selfLink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/regions/europe-west1/subnetworks/default"
+                        }
+                    }
+                ], 
+                "project": "pure-stronghold-260309", 
+                "scheduling": {
+                    "automaticRestart": true, 
+                    "onHostMaintenance": "MIGRATE", 
+                    "preemptible": false
+                }, 
+                "selfLink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/zones/europe-west1-b/instances/docker-inst-2", 
+                "startRestricted": false, 
+                "status": "RUNNING", 
+                "tags": {
+                    "fingerprint": "DYuTNhd7XtU=", 
+                    "items": [
+                        "docker-machines"
+                    ]
+                }, 
+                "zone": "europe-west1-b", 
+                "zone_selflink": "https://www.googleapis.com/compute/v1/projects/pure-stronghold-260309/zones/europe-west1-b"
+            }
+        }
+    }, 
+    "all": {
+        "children": [
+            "ungrouped"
+        ]
+    }, 
+    "ungrouped": {
+        "hosts": [
+            "docker-inst-1", 
+            "docker-inst-2"
+        ]
+    }
+}
