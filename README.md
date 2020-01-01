@@ -2004,11 +2004,184 @@ gcloud compute firewall-rules create tcp3000 \
 Мы используем данный тип метрики для измерения времени обработки HTTP запроса нашим приложением:
 ```ui_request_response_time_bucket{path="/"}```
 
+!!! В мордочке прометея граф рисуется повернутым (в сравнении с рисунками на слайде), либо увеличивающимся. Вероятно, гистограммы рисуются где то в другом месте.
+
+
 ### Процентиль 
 Числовое значение в наборе значений. Все числа в наборе меньше процентиля, попадают в границы заданного процента значений от всего числа значений в наборе
 *Хрестоматия:* В классе 20 учеников. Валя занимает 4-е место по росту в классе. 20-4=16 >> 16/20*100=80% Тогда рост Вали (180 см) является 80-м процентилем. Это означает, что 80 % учеников имеют рост менее 180 см.
 
 Вычислим 95-й процентиль для выборки времени обработки запросов,
 чтобы посмотреть какое значение является максимальной границей для большинства (95%) запросов. Для этого воспользуемся встроенной функцией histogram_quantile():
+```histogram_quantile(0.95, sum(rate(ui_request_latency_seconds_bucket[5m])) by (le))```
+Сохраним настройки дашборда в файл: ```monitoring/grafana/dashboards/UI_Service_Monitoring.json```
+
+## М2 Сбор метрик бизнес-логики
+Мониторинг бизнес-логики
+Ранее были добавлены счетчики количества постов и комментариев
+  * post_count
+  * comment_count
+Построим график скорости роста значения счетчика за последний час, используя функцию rate(). Это позволит получать информацию об активности пользователей приложения.
+
+## Алертинг
+
+Определим несколько правил, в которых зададим условия состояний наблюдаемых систем, при которых мы должны получать
+оповещения, т.к. заданные условия могут привести к недоступности или неправильной работе нашего приложения.
+_! В Grafana тоже есть alerting. Но по функционалу он уступает Alertmanager в Prometheus._
+
+Создадим каталог ```monitoring/alertmanager``` с Dockerfile:
+```
+FROM prom/alertmanager:v0.14.0
+ADD config.yml /etc/alertmanager/
+```
+
+Для тестирования создал в workspace devops-team-otus.slack.com приложение guildin-test-slack.
+В настройках включил Incoming Webhooks и добавил новый: 
+```curl -X POST -H 'Content-type: application/json' --data '{"text":"Hello, World!"}' https://hooks.slack.com/services/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```
+
+
+
+config.yml:
+```
+global:
+  slack_api_url: 'https://hooks.slack.com/services/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'
+
+route:
+  receiver: 'slack-notifications'
+
+receivers:
+- name: 'slack-notifications'
+  slack_configs:
+  - channel: '#alexander_tikhonov'
+```
+
+В docker-compose-monitoring.yml добавлено:
+```
+...
+services:
+  alertmanager:
+    image: ${USER_NAME}/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+    ports:
+      - 9093:9093
+    networks:
+      back_net:
+        aliases:
+          - alertmanager
+...
+```
+
+В директории prometheus создадим файл alerts.yml, в котором определим условия алерта, посылаемого Alertmanager-у. 
+Мы создадим простой алерт, который будет срабатывать в ситуации, когда одна из наблюдаемых систем (endpoint) недоступна для сбора метрик (в этом случае метрика up с лейблом instance равным имени данного эндпоинта будет равна 0). 
+_Выполним запрос по имени метрики up в веб интерфейсе Prometheus, чтобы убедиться, что сейчас все эндпоинты доступны для сбора метрик._
+
+alerts.yml:
+```
+groups:
+  - name: alert.rules
+    rules:
+    - alert: InstanceDown
+      expr: up == 0
+      for: 1m
+      labels:
+        severity: page
+      annotations:
+        description: '{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 1 minute'
+        summary: 'Instance {{ $labels.instance }} down'
+```
+
+Dockerfile:
+```
+...
+ADD alerts.yml /etc/prometheus/
+```
+
+Добавим информацию о правилах в настройки prometheus.yml:
+```
+...
+rule_files:
+  - "alerts.yml"
+
+alerting:
+  alertmanagers:
+  - scheme: http
+    static_configs:
+    - targets:
+      - "alertmanager:9093"
+...
+```
+
+Пересоберем образ прометея (docker build -t guildin/prometheus .) и пересоздадим инфру мониторинга заново.
+Алерты можно посмотреть в веб интерфейсе Prometheus.
+Остановим сервис post (```docker-compose stop post```) и убедимся в срабатывании алерта:
+  * В веб-интерфейсе:
+```
+Alerts
+InstanceDown (1 active)
+```
+  * В slack:
+```
+guildin-test-slackAPP 3:28 PM
+[FIRING:1] InstanceDown (post:5000 post page)
+```
+NB! У Alertmanager также есть свой веб интерфейс, доступный на порту 9093, который мы прописали в компоуз файле.
+    P.S. Проверить работу вебхуков слака можно обычным curl.
+
+Добавим в makefile результат работы:
+```
+build_alertmgr:
+	cd ${PATH_ALERTMANAGER_SRC} && bash ./docker_build.sh . 
+...
+push_alertmgr:
+	docker push ${USER_NAME}/alertmanager
+
+push_mon1: push_comment push_post push_ui push_prometheus push_exporter_mongo push_exporter_blackbox push_alertmgr
+```
+
+Отправим результаты работы на хаб:
+```make push_mon1```
+
+## M2 Задания Ж:
+Задания со *
+  * Если в прошлом ДЗ вы реализовали Makefile, добавьте в него билд и публикацию добавленных в этом ДЗ сервисов;
+```ok```
+  * В Docker в экспериментальном режиме реализована отдача метрик в формате Prometheus. Добавьте сбор этих метрик в Prometheus. Сравните количество метрик
+с Cadvisor. Выберите готовый дашборд или создайте свой для этого источника данных. Выгрузите его в monitoring/grafana/dashboards;
+```
+docker-user@docker-host:~$ history
+  sudo vim /etc/docker/daemon.json
+{
+  "metrics-addr" : "0.0.0.0:9323",
+  "experimental" : true
+}
+  sudo systemctl restart docker
+  ss -lt
+  ...
+LISTEN     0      128  :::9323  *:*
+  ...
+```
+Несмотря на то, что конфигурация была поправлена, а демон начал слушать соответствующий порт, получить метрики мы пока не можем: 
+```
+docker-user@docker-host:~$ curl localhost:9323
+404 page not found
+```
+Лезем в [песочницу](https://www.katacoda.com/courses/prometheus/docker-metrics) и вот оно что:
+```curl localhost:9323/metrics```
+
+Добавим правило брандмауэра, чтобы посмотреть метрики снаружи:
+gcloud compute firewall-rules create docker-metrics-experimental \
+ --allow tcp:9323 \
+ --target-tags=docker-machine \
+ --description="Allow docker-metrics view" \
+ --direction=INGRESS
+
+Костыли и грабли: прометею из докера нужно получить доступ к сокету на хостовой машине. Пока указал локальный ip машины, но TODO сделать менее криво.
+пытался накрутить счетчик на одну из уникальных метрик демона builder_builds_failed_total{reason="dockerfile_empty_error"}, несколько раз запустив билд с пустым докерфайлом, но счетчик не вырос и стало неинтересно. Какая там графана, если сами счетчики не дергаются?
+
+## Здесь и далее - TODO
+  * Для сбора метрик с Docker демона также можно использовать Telegraf от InfluxDB. Добавьте сбор этих метрик в Prometheus. Сравните количество метрик с Cadvisor. Выберите готовый дашборд или создайте свой для этого источника данных. Выгрузите его в monitoring/grafana/dashboards;
+  * Придумайте и реализуйте другие алерты, например на 95 процентиль времени ответа UI, который рассмотрен выше; Настройте интеграцию Alertmanager с e-mail
+помимо слака;
 
 

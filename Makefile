@@ -30,6 +30,10 @@ build_comment:
 	cd ${PATH_COMMENT_SRC} && bash ./docker_build.sh . 
 #docker build -t ${USER_NAME}/comment:${IMG_COMMENT_VERSION} .
 
+build_alertmgr:
+	cd ${PATH_ALERTMANAGER_SRC} && bash ./docker_build.sh . 
+#docker build -t ${USER_NAME}/alertmanager:${ALERTMANAGER_VERSION} .
+
 pull_mongo:
 	docker pull mongo:latest
 
@@ -40,7 +44,7 @@ mon1_run:
 build_mon1:
 	export GOOGLE_PROJECT=${GCP_PROJECT_ID}
 	eval $(docker-machine env docker-host)
-	build_exp_bbox build_exp_mongo build_prom build_ui build_post build_comment
+	build_exp_bbox build_exp_mongo build_prom build_ui build_post build_comment build_alertmgr
         
 
 setpath:
@@ -83,5 +87,8 @@ push_exporter_mongo:
 push_exporter_blackbox:
 	docker push ${USER_NAME}/blackbox_exporter
 
-push_mon1: push_comment push_post push_ui push_prometheus push_exporter_mongo push_exporter_blackbox
+push_alertmgr:
+	docker push ${USER_NAME}/alertmanager
+
+push_mon1: push_comment push_post push_ui push_prometheus push_exporter_mongo push_exporter_blackbox push_alertmgr
 

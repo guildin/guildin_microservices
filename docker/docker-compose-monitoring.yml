@@ -1,5 +1,15 @@
 version: '3.3'
 services:
+  alertmanager:
+    image: ${USERNAME}/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/config.yml'
+    ports:
+      - 9093:9093
+    networks:
+      back_net:
+        aliases:
+          - alertmanager
   mongodb-exporter:
     container_name: mongodb-exporter
     image: ${USERNAME}/mongodb_exporter:${IMG_MONGODB_EXPORTER_VERSION}
