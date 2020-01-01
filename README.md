@@ -2044,7 +2044,7 @@ ADD config.yml /etc/alertmanager/
 config.yml:
 ```
 global:
-  slack_api_url: 'https://hooks.slack.com/services/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'
+  slack_api_url: 'https://hooks.slack.com/services/публиковать/не/надо'
 
 route:
   receiver: 'slack-notifications'
