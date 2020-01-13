@@ -20,9 +20,9 @@ GEM
     mustermann (1.0.2)
     prometheus-client (0.7.1)
       quantile (~> 0.2.0)
-    puma (3.10.0)
+    puma (3.12.0)
     quantile (0.2.0)
-    rack (2.0.5)
+    rack (2.0.8)
     rack-protection (2.0.2)
       rack
     rufus-scheduler (3.4.2)
@@ -63,7 +63,7 @@ DEPENDENCIES
   faraday
   haml
   prometheus-client
-  puma
+  puma (= 3.12.0)
   rack
   rufus-scheduler
   sinatra (~> 2.0.2)
