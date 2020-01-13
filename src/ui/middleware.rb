@@ -12,8 +12,6 @@ class Metrics
       :ui_request_response_time,
       'Request response time'
     )
-    @request_latency = Prometheus::Client::Histogram.new(:ui_request_latency_seconds, 'Request latency')
-    prometheus.register(@request_latency)
     prometheus.register(@request_response_time)
     prometheus.register(@request_count)
   end
@@ -29,7 +27,6 @@ class Metrics
     @request_count.increment(method: env['REQUEST_METHOD'],
                              path: env['REQUEST_PATH'],
                              http_status: @status)
-    @request_latency.observe({ path: env['REQUEST_PATH'] }, request_ended_on - request_started_on)
     [@status, @headers, @response]
   end
 end

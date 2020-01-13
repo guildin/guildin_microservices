@@ -2185,3 +2185,359 @@ gcloud compute firewall-rules create docker-metrics-experimental \
 помимо слака;
 
 
+# logging-1
+
+Код микросервисов обновился для добавления функционала логирования. Новая версия кода доступа по [ссылке](https://github.com/express42/reddit/tree/logging) .
+Раз уж зашла речь об alpine, обновим все Dockerfile'ы и соберем их заново (```make build_mon1```), а то до этого было лень.
+
+*Хрестоматия*: хранить все логи стоит централизованно: на одном (нескольких) серверах. В этом ДЗ мы рассмотрим пример системы централизованного логирования на
+примере Elastic стека (ранее известного как ELK): который включает в себя 3 осовных компонента:
+  * ElasticSearch (TSDB и поисковый движок для хранения данных)
+  * Logstash (для агрегации и трансформации данных)
+  * Kibana (для визуализации)
+Однако для агрегации логов вместо Logstash мы будем использовать Fluentd, таким образом получая еще одно популярное сочетание этих инструментов, получившее название EFK
+
+## Fluentd
+Fluentd может использоваться для отправки, агрегации и преобразования лог-сообщений. Мы будем использовать Fluentd для агрегации (сбора в одной месте) и
+парсинга логов сервисов нашего приложения.
+Создадим образ Fluentd с нужной нам конфигурацией: ```mkdir logging && mkdir logging/fluentd && vim Dockerfile```
+Dockerfile:
+```
+FROM fluent/fluentd:v0.12
+RUN gem install fluent-plugin-elasticsearch --no-rdoc --no-ri --version 1.9.5
+RUN gem install fluent-plugin-grok-parser --no-rdoc --no-ri --version 1.0.0
+ADD fluent.conf /fluentd/etc
+```
+fluent.conf:
+```
+<source>
+  @type forward
+  port 24224
+  bind 0.0.0.0
+</source>
+
+<match *.**>
+  @type copy
+  <store>
+    @type elasticsearch
+    host elasticsearch
+    port 9200
+    logstash_format true
+    logstash_prefix fluentd
+    logstash_dateformat %Y%m%d
+    include_tag_key true
+    type_name access_log
+    tag_key @log_name
+    flush_interval 1s
+  </store>
+  <store>
+    @type stdout
+  </store>
+</match>
+```
+Примечания:
+```
+@type forward # Используем in_forward плагин для приема логов https://docs.fluentd.org/v0.12/articles/in_forward
+@type copy    # Используем copy плагин, чтобы переправить все входящие логи в ElasticSearch, а также вывести в output https://docs.fluentd.org/v0.12/articles/out_copy
+```
+Соберем образ для fluentd и добавим рецепт в Makefile (TODO!)
+
+## Структурированные логи
+Логи должны иметь заданную (единую) структуру и содержать необходимую для нормальной эксплуатации данного сервиса информацию о его работе
+Лог-сообщения также должны иметь понятный для выбранной системы логирования формат, чтобы избежать ненужной траты ресурсов
+на преобразование данных в нужный вид.
+
+Структурированные логи мы рассмотрим на примере сервиса post:
+```
+cd docker
+docker-compose up -d
+docker-compose logs -f post
+```
+Создадим новый пост и посмотрим его отображение в логе:
+```
+$ docker-compose logs -f post | grep post1
+post-service | {"event": "post_create", "level": "info", "message": "Successfully created a new post", "params": {"link": "http://post1.fi", "title": "post1"}, "request_id": "2ed8cfc4-9dc2-4bd6-a936-66c3990c0644", "service": "post", "timestamp": "2020-01-02 13:25:49"}
+```
+Каждое событие, связанное с работой нашего приложения логируется в JSON формате и имеет нужную нам структуру: тип события (event), сообщение (message), переданные функции параметры (params), имя сервиса (service) и др.
+
+# Отправка логов во Fluentd
+Как отмечалось на лекции, по умолчанию Docker контейнерами используется json-file драйвер для логирования информации, которая пишется сервисом внутри контейнера в stdout (и stderr).
+Для отправки логов во Fluentd используем docker драйвер [fluentd](https://docs.docker.com/engine/admin/logging/fluentd/)
+
+Поднимем EFK и перезапустим сервисы приложения:
+```
+$ docker-compose -f docker-compose-logging.yml up -d
+$ docker-compose down
+$ docker-compose up -d
+```
+Создадим несколько постов в приложении.
+## Kibana
+Kibana - инструмент для визуализации и анализа логов от компании Elastic.
+Откроем WEB-интерфейс Kibana для просмотра собранных в ElasticSearch логов Post-сервиса (kibana слушает на порту 5601)
+Но сначала:
+```
+gcloud compute firewall-rules create allow-kibana \
+ --allow tcp:5601 \
+ --target-tags=docker-machine \
+ --description="Allow Kibana connections" \
+ --direction=INGRESS
+```
+А потом:
+
+Дебажим:
+```
+$ docker ps -a
+...
+04ff1994e28e elasticsearch:7.4.0 "/usr/local/bin/dock…" 19 minutes ago Exited (78) 18 minutes ago docker_elasticsearch_1
+...
+```
+```
+$ docker-compose -f docker-compose-logging.yml logs elasticsearch
+...
+elasticsearch_1  | {"type": "server", "timestamp": "2020-01-02T13:37:24,806Z", "level": "INFO", "component": "o.e.x.m.p.NativeController", "cluster.name": "docker-cluster", "node.name": "04ff1994e28e", "message": "Native controller process has stopped - no new native processes can be started" }
+...
+```
+
+Решение от коллег:
+1. ```sudo sysctl -w vm.max_map_count=262144``` на хосте  
+2. Правим docker-compose-logging.yml
+```
+...
+  elasticsearch:
+    image: elasticsearch:7.5.0
+    expose:
+      - 9200
+    ports:
+      - "9200:9200"
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=docker-cluster
+      - node.master=true
+      - cluster.initial_master_nodes=elasticsearch
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+...
+```
+3. На хосте:
+```
+echo elasticsearch soft memlock unlimited | sudo tee /etc/security/limits.conf
+echo elasticsearch hard memlock unlimited | sudo tee /etc/security/limits.conf
+```
+4. ulimits для elsticsearch (docker-compose-logging.yml):
+```
+...
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+...
+```
+
+В веб-интерфейсе выберем HOME -> Visualize and Explore Data -> discover по запросу fluentd*, c фильтром @timestamp
+Слева найдем писктограмму discover для просмотра гистограммы полученных журнальных сообщений 
+
+Развернем любое сообщение журнала для просмотра подробной информации о нем. Это сообщения, которые мы недавно наблюдали в
+терминале. Теперь эти сообщения хранятся централизованно в ElasticSearch. Как и информация о том, откуда поступил данный лог.
+
+Наименования в левом столбце, называются полями. По полям можно производить поиск для быстрого нахождения нужной информации.
+Для того чтобы посмотреть некоторые примеры поиска, можно ввести в поле поиска произвольное выражение, например поиск всех логов, поступивших с контейнера
+post-service (что-то не сознается, подумать) или message _Successfully created a new post_
+
+## Фильтры
+Заметим, что поле log содержит в себе JSON объект, который содержит много интересной нам информации.
+Нам хотелось бы выделить эту информацию в поля, чтобы иметь возможность производить по ним поиск. Например, для того чтобы найти все логи, связанные с определенным событием (event) или конкретным сервисов (service).
+Мы можем достичь этого за счет использования фильтров для выделения нужной информации.
+Добавим фильтр для парсинга json логов, приходящих от post сервиса, в конфиг fluentd:
+```
+...
+<filter service.post>
+@type parser
+format json
+key_name log
+</filter>
+...
+```
+Пересоберем образ и перезапустим сервис. Проверим парсинг логов, прежде убедившись, что временной интервал выбран корректно.
+Вместо одного поля log появилось множество полей с нужной нам информацией:
+```
+t@log_name	service.post
+@timestamp	Jan 2, 2020 @ 17:58:05.000
+t_id	LvHDZm8BxLNr_iRDfSan
+t_index	fluentd-20200102
+#_score	 - 
+t_type	access_log
+?event	post_create
+?level	info
+tmessage	Successfully created a new post
+?params.link http://post5.fi
+?params.title post5
+?request_id	be643c77-024e-42cf-a625-af7623f8ab01
+?service post
+?timestamp 2020-01-02 14:58:05
+```
+
+Попробуем найти поиск по событию (event:post_create):
+```
+Jan 2, 2020 @ 17:58:16.000 - Successfully created a new post
+Jan 2, 2020 @ 17:58:05.000 - Successfully created a new post
+```
+
+## Неструктурированные логи
+Неструктурированные логи отличаются отсутствием четкой структуры данных. Также часто бывает, что формат лог-сообщений
+не подстроен под систему централизованного логирования, что существенно увеличивает затраты вычислительных и временных
+ресурсов на обработку данных и выделение нужной информации.
+На примере сервиса ui рассмотрим пример логов с неудобным форматом сообщений.
+
+По аналогии с post сервисом определим для ui сервиса драйвер для логирования fluentd в compose-файле
+```
+...
+  ui:
+    container_name: ui-service
+    image: ${USERNAME}/ui:${IMG_UI_VERSION}
+    environment:
+      - POST_SERVICE_HOST=post
+      - POST_SERVICE_PORT=5000
+      - COMMENT_SERVICE_HOST=comment
+      - COMMENT_SERVICE_PORT=9292
+    logging:
+      driver: "fluentd"
+      options:
+        fluentd-address: localhost:24224
+        tag: service.ui
+    ports:
+      - ${H_PORT_UI}:${C_PORT_UI}/tcp
+    networks:
+      front_net:
+        aliases:
+          - ui
+...
+```
+
+Перезапустим ui сервис:
+$ docker-compose stop ui
+$ docker-compose rm ui
+$ docker-compose up -d
+
+Посмотрим на формат собираемых сообщений:
+```
+container_name	/ui-service
+log	I, [2020-01-02T15:22:18.300879 #1]  INFO -- : service=ui | event=request | path=/ | request_id=21ab45dd-ff16-474f-a91e-d278e45bb03b | remote_addr=172.18.0.5 | method= GET | response_status=200
+```
+Когда приложение или сервис не пишет структурированные логи, приходится использовать старые добрые регулярные
+выражения для их парсинга в /docker/fluentd/fluent.conf
+[Следующее регулярное выражение](https://gist.githubusercontent.com/chromko/ba8af0362838cc0eaf3a61955698458f/raw/ee67b3de85207c01ecae558d0e47e7f281682c74/gistfile1.txt) нужно, чтобы успешно выделить интересующую нас информацию из лога UI-сервиса в поля:
+```
+<filter service.ui>
+  @type parser
+  format /\[(?<time>[^\]]*)\]  (?<level>\S+) (?<user>\S+)[\W]*service=(?<service>\S+)[\W]*event=(?<event>\S+)[\W]*(?:path=(?<path>\S+)[\W]*)?request_id=(?<request_id>\S+)[\W]*(?:remote_addr=(?<remote_addr>\S+)[\W]*)?(?:method= (?<method>\S+)[\W]*)?(?:response_status=(?<response_status>\S+)[\W]*)?(?:message='(?<message>[^\']*)[\W]*)?/
+  key_name log
+</filter>
+```
+
+Обновим образ и перезапустим кибану. Убедимся, что логи распарсились.
+Такие парсеры могут иметь ошибки, их сложно менять и больно читать. 
+Можно использовать grok-шаблоны. По-сути grok’и - это именованные шаблоны регулярных выражений (очень
+похоже на функции). 
+Можно использовать готовый regexp, просто сославшись на него как на функцию docker/fluentd/fluent.conf
+
+Попробуем:
+```
+<filter service.ui>
+  @type parser
+  key_name log
+  format grok
+  grok_pattern %{RUBY_LOGGER}
+</filter>
+
+<filter service.ui>
+  @type parser
+  format grok
+  grok_pattern service=%{WORD:service} \| event=%{WORD:event} \| request_id=%{GREEDYDATA:request_id} \| message='%{GREEDYDATA:message}'
+  key_name message
+  reserve_data true
+</filter>
+```
+
+## L1 Задание Ж
+1. UI-сервис шлет логи в нескольких форматах.
+```
+tmessage	
+service=ui | event=request | path=/ | request_id=9fcd70af-c2fa-4a4a-b7f5-5928a1ccd83a | remote_addr=172.18.0.2 | method= GET | response_status=200
+```
+Такой лог остался неразобранным. Составьте конфигурацию fluentd так, чтобы разбирались оба формата логов UI-сервиса (тот,
+что сделали до этого и текущий) одновременно.
+### Реализация
+Немного подкрутим фильтр ( [дебаггер](https://grokdebug.herokuapp.com/) ):
+```
+<filter service.ui>
+  @type parser
+  format grok
+<grok>
+  pattern service=%{WORD:service} \| event=%{WORD:event} \| request_id=%{GREEDYDATA:request_id} \| message='%{GREEDYDATA:message}'
+</grok>
+<grok>
+  pattern service=%{WORD:service} \| event=%{WORD:event} \| path=%{URIPATH:path} \| request_id=%{UUID:request_id} \| remote_addr=%{IP:remote_addr} \| method=%{GREEDYDATA:method} \| response_status=%{INT:response_status}
+</grok>
+  key_name message
+  reserve_data true
+</filter>
+```
+2. Разобраться с темой распределенного трейсинга и решить проблему в конце данного файла
+
+### Реализация
+  * Чтобы починить что-нибудь ненужное, нужно сначала сломать что-нибудь ненужное. Декомпозируем приложение, пересоберем его из порченных исходников с тегом latest, сменим версию приложения для docker-compose, соберем его обратно.
+  
+  * Запросим в zipkin трейс и обатим внимание на запись со временем примерно в 30 секунд.
+Провалимся в span:
+```
+Services: comment,ui_app
+Date Time 	Relative Time 	Annotation 	Address
+10.01.2020, 00:06:27 	3.037s 	Client Start 	172.18.0.4:9292 (ui_app)
+10.01.2020, 00:06:57 	33.193s 	Client Finish 	172.18.0.4:9292 (ui_app)
+Key 	Value
+error 	500
+http.path 	/5e1795bf200aee000b02837d/comments
+http.status 	500
+Server Address 	172.18.0.3:9292 (comment)
+```
+
+  * Проверим зависимости: (zipkin/dependency)
+```
+Key 	Value
+Number of calls 	1
+Number of errors 	1
+```
+Проблема явно в сервисе comment. 
+Промотаем время на час вперед и обратим внимание на переменные окружения. А их нет. Точнее нет переменных (за час успел излазить коды сервисов, хорошо что мелкие):
+```
+ENV COMMENT_DATABASE_HOST comment_db
+ENV COMMENT_DATABASE comments
+```
+  * вставим их в докерфайл, опустим сервисы, пересоберем comment, поднимем сервисы. 
+  * Profit!  
+
+## L1 Распределенный трейсинг
+
+## Zipkin
+  * Добавим в compose-файл для сервисов логирования сервис распределенного трейсинга Zipkin:
+```
+  zipkin:
+    image: openzipkin/zipkin
+    ports:
+      - "9411:9411"
+```
+  * добавим в сервисы app переменную окружения ZIPKIN_ENABLED=true
+  * пересоздадим микросервисы приложения ```make decompose_app && make compose_app```
+  * zipkin firewall:
+  ```
+  gcloud compute firewall-rules create allow-zipkin \
+ --allow tcp:9411 \
+ --target-tags=docker-machine \
+ --description="Allow zipkin" \
+ --direction=INGRESS
+ ```
+
+  * Зайдем в интерфейс zipkin
+ синие полоски со временем называются span и представляют собой одну операцию, которая произошла при обработке запроса. Набор span-ов называется
+трейсом. Суммарное время обработки нашего запроса равно верхнему span-у, который включает в себя время всех span-ов, расположенных под ним.
+
