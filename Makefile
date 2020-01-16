@@ -107,3 +107,41 @@ push_mon: push_prometheus push_exporter_mongo push_exporter_blackbox push_alertm
 
 push_app: push_comment push_post push_ui
 
+kuber_client_tools:
+	wget -q --show-progress --https-only --timestamping \
+		https://storage.googleapis.com/kubernetes-the-hard-way/cfssl/linux/cfssl \
+	    	https://storage.googleapis.com/kubernetes-the-hard-way/cfssl/linux/cfssljson
+	chmod +x cfssl cfssljson
+	sudo mv cfssl cfssljson /usr/local/bin/
+	wget https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_RELEASE}/bin/linux/amd64/kubectl
+	chmod +x kubectl
+	sudo mv kubectl /usr/local/bin/
+
+kuber_machines_up:
+	for i in 0 1 2; do
+	gcloud compute instances create controller-${i} \
+	--async \
+	--boot-disk-size 200GB \
+	--can-ip-forward \
+	--image-family ubuntu-1804-lts \
+	--image-project ubuntu-os-cloud \
+	--machine-type n1-standard-1 \
+	--private-network-ip 10.240.0.1${i} \
+	--scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
+	--subnet kubernetes \
+	--tags kubernetes-the-hard-way,controller
+	done
+	for i in 0 1 2; do
+	gcloud compute instances create worker-${i} \
+	--async \
+	--boot-disk-size 200GB \
+	--can-ip-forward \
+	--image-family ubuntu-1804-lts \
+	--image-project ubuntu-os-cloud \
+	--machine-type n1-standard-1 \
+	--metadata pod-cidr=10.200.${i}.0/24 \
+	--private-network-ip 10.240.0.2${i} \
+	--scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
+	--subnet kubernetes \
+	--tags kubernetes-the-hard-way,worker
+	done

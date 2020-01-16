@@ -1,0 +1,21 @@
+packer/variables.json
+packer/variables.tf2lab.json
+*.tfstate
+*.tfstate.*.backup
+*.tfstate.backup
+*.tfvars
+.terraform/
+terraform/.terraform.tfstate.lock.info
+ansible/tmp/
+jdauphant.nginx
+# Vagrant & molecule
+.vagrant/
+*.log
+*.pyc
+.molecule
+.cache
+.pytest_cache
+*.old
+*-local-ops.sh
+.env
+

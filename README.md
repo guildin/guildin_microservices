@@ -15,6 +15,12 @@ guildin microservices repository
 | [Gitlab CI 1](#gitlab-ci-1) | [CI/CD Pipeline](#ci/cd-pipeline) | [GCI1 Окружения](#gci1-окружения) | [GCI Задание Ж](#gci-задание-ж) |
 | --- | --- | --- | --- |
 | [Monitoring-1](#monitoring-1) | [Запуск Prometheus](#запуск-prometheus) | [Образы микросервисов](#образы-микросервисов) | [M1 Задание Ж](#m1-задание-ж) |
+| --- | --- | --- | --- |
+| [Monitoring-2](#monitoring-2) | [M2 Визуализация метрик: Grafana](#m2-визуализация-метрик-grafana) | [M2 Сбор метрик бизнес-логики](#m2-сбор-метрик-бизнес-логики) | [M2 Задания Ж](#m2-задания-ж) |
+| --- | --- | --- | --- |
+| [Logging-1](#logging-1) | [L1-Fluentd](#l1-fluentd) | [L1 Структурированные логи](#L1-структурированные-логи) | [L1-Kibana](#l1-kibana) |
+| --- | --- | --- | --- |
+| [Kubernetes-1](#kubernetes-1) | [TODO](#todo) | [TODO](#todo) | [TODO](#todo) |
 
 
 # Docker-2
@@ -1925,7 +1931,7 @@ try: добавим в описание контейнера cAdvisor сеть b
 После этого прометей получит доступ к кАдвизору. Однако контейнеры, описанные в docker-compose.yml останутся в другой сети. Следовательно, распределение по проектам в данном случае не подходит.
 Если вернуть все на место, коммутация между сервисами обоих групп восттановится, но при запуске контейнеров все равно будет выдаваться предупреждение, которое можно подавить с помощью переменной окружения ```COMPOSE_IGNORE_ORPHANS=True```. Однако, в проде это может выйти боком.
 
-## Визуализация метрик: Grafana
+## M2 Визуализация метрик: Grafana
 
 Добавим в docker-compose-monitoring.yml:
 ```
@@ -2016,7 +2022,7 @@ gcloud compute firewall-rules create tcp3000 \
 ```histogram_quantile(0.95, sum(rate(ui_request_latency_seconds_bucket[5m])) by (le))```
 Сохраним настройки дашборда в файл: ```monitoring/grafana/dashboards/UI_Service_Monitoring.json```
 
-## М2 Сбор метрик бизнес-логики
+## M2 Сбор метрик бизнес-логики
 Мониторинг бизнес-логики
 Ранее были добавлены счетчики количества постов и комментариев
   * post_count
@@ -2197,7 +2203,7 @@ gcloud compute firewall-rules create docker-metrics-experimental \
   * Kibana (для визуализации)
 Однако для агрегации логов вместо Logstash мы будем использовать Fluentd, таким образом получая еще одно популярное сочетание этих инструментов, получившее название EFK
 
-## Fluentd
+## L1-Fluentd
 Fluentd может использоваться для отправки, агрегации и преобразования лог-сообщений. Мы будем использовать Fluentd для агрегации (сбора в одной месте) и
 парсинга логов сервисов нашего приложения.
 Создадим образ Fluentd с нужной нам конфигурацией: ```mkdir logging && mkdir logging/fluentd && vim Dockerfile```
@@ -2242,7 +2248,7 @@ fluent.conf:
 ```
 Соберем образ для fluentd и добавим рецепт в Makefile (TODO!)
 
-## Структурированные логи
+## L1 Структурированные логи
 Логи должны иметь заданную (единую) структуру и содержать необходимую для нормальной эксплуатации данного сервиса информацию о его работе
 Лог-сообщения также должны иметь понятный для выбранной системы логирования формат, чтобы избежать ненужной траты ресурсов
 на преобразование данных в нужный вид.
@@ -2260,7 +2266,7 @@ post-service | {"event": "post_create", "level": "info", "message": "Successfull
 ```
 Каждое событие, связанное с работой нашего приложения логируется в JSON формате и имеет нужную нам структуру: тип события (event), сообщение (message), переданные функции параметры (params), имя сервиса (service) и др.
 
-# Отправка логов во Fluentd
+### Отправка логов во Fluentd
 Как отмечалось на лекции, по умолчанию Docker контейнерами используется json-file драйвер для логирования информации, которая пишется сервисом внутри контейнера в stdout (и stderr).
 Для отправки логов во Fluentd используем docker драйвер [fluentd](https://docs.docker.com/engine/admin/logging/fluentd/)
 
@@ -2271,7 +2277,8 @@ $ docker-compose down
 $ docker-compose up -d
 ```
 Создадим несколько постов в приложении.
-## Kibana
+
+## L1-Kibana
 Kibana - инструмент для визуализации и анализа логов от компании Elastic.
 Откроем WEB-интерфейс Kibana для просмотра собранных в ElasticSearch логов Post-сервиса (kibana слушает на порту 5601)
 Но сначала:
@@ -2516,9 +2523,7 @@ ENV COMMENT_DATABASE comments
   * вставим их в докерфайл, опустим сервисы, пересоберем comment, поднимем сервисы. 
   * Profit!  
 
-## L1 Распределенный трейсинг
-
-## Zipkin
+## L1 Распределенный трейсинг. Zipkin
   * Добавим в compose-файл для сервисов логирования сервис распределенного трейсинга Zipkin:
 ```
   zipkin:
@@ -2541,3 +2546,97 @@ ENV COMMENT_DATABASE comments
  синие полоски со временем называются span и представляют собой одну операцию, которая произошла при обработке запроса. Набор span-ов называется
 трейсом. Суммарное время обработки нашего запроса равно верхнему span-у, который включает в себя время всех span-ов, расположенных под ним.
 
+
+# Kubernetes-1
+
+Создадим директорию kubernetes и поместим в нее файлы манифестов:
+  * post-deployment.yml [gist](https://gist.githubusercontent.com/chromko/d90b18ed9fac3eba9d19a72deec5d346/raw/dd4261dfb8e1b190f9b7a3d2dca6ce349976052b/gistfile1.txt)
+  * ui-deployment.yml
+  * comment-deployment.yml
+  * mongo-deployment.yml
+
+  ## Kubernetes The Hard Way
+  (больше пафоса!)
+
+  [Kubernetes The Hard Way Келси Хайтауэра](https://github.com/kelseyhightower/kubernetes-the-hard-way)
+
+  ### K1 Client Tools
+Установка (добавил в Makefile)
+```
+client_tools:
+      wget -q --show-progress --https-only --timestamping \
+              https://storage.googleapis.com/kubernetes-the-hard-way/cfssl/linux/cfssl \
+              https://storage.googleapis.com/kubernetes-the-hard-way/cfssl/linux/cfssljson
+      chmod +x cfssl cfssljson
+      sudo mv cfssl cfssljson /usr/local/bin/
+```
+
+Kubectl:
+```
+wget https://storage.googleapis.com/kubernetes-release/release/v1.15.3/bin/linux/amd64/kubectl
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+
+```
+Версия добавлена в .env, код в Makefile
+
+Описание VPC-сети в GCP 
+```
+gcloud compute networks create kubernetes-the-hard-way --subnet-mode custom
+gcloud compute networks subnets create kubernetes \
+  --network kubernetes-the-hard-way \
+  --range 10.240.0.0/24
+gcloud compute firewall-rules create kubernetes-the-hard-way-allow-internal \
+  --allow tcp,udp,icmp \
+  --network kubernetes-the-hard-way \
+  --source-ranges 10.240.0.0/24,10.200.0.0/16
+gcloud compute firewall-rules create kubernetes-the-hard-way-allow-external \
+  --allow tcp:22,tcp:6443,icmp \
+  --network kubernetes-the-hard-way \
+  --source-ranges 0.0.0.0/0
+  gcloud compute addresses create kubernetes-the-hard-way \
+  --region $(gcloud config get-value compute/region)
+```
+
+Проверка накрученного (VPC)
+```
+gcloud compute networks list
+gcloud compute firewall-rules list --filter="network:kubernetes-the-hard-way"
+gcloud compute addresses list --filter="name=('kubernetes-the-hard-way')"
+```
+
+Описание контроллеров:
+```
+for i in 0 1 2; do
+  gcloud compute instances create controller-${i} \
+    --async \
+    --boot-disk-size 200GB \
+    --can-ip-forward \
+    --image-family ubuntu-1804-lts \
+    --image-project ubuntu-os-cloud \
+    --machine-type n1-standard-1 \
+    --private-network-ip 10.240.0.1${i} \
+    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
+    --subnet kubernetes \
+    --tags kubernetes-the-hard-way,controller
+done
+```
+
+Kubernetes Workers
+```
+for i in 0 1 2; do
+  gcloud compute instances create worker-${i} \
+    --async \
+    --boot-disk-size 200GB \
+    --can-ip-forward \
+    --image-family ubuntu-1804-lts \
+    --image-project ubuntu-os-cloud \
+    --machine-type n1-standard-1 \
+    --metadata pod-cidr=10.200.${i}.0/24 \
+    --private-network-ip 10.240.0.2${i} \
+    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
+    --subnet kubernetes \
+    --tags kubernetes-the-hard-way,worker
+done
+```
+Воркеры создаются и удаляются. Шоза?
