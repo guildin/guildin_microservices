@@ -2639,4 +2639,111 @@ for i in 0 1 2; do
     --tags kubernetes-the-hard-way,worker
 done
 ```
-Воркеры создаются и удаляются. Шоза?
+
+## 7 процентов людей и иных представителей человечекой расы:
+...6 экземпляров создается, 2 из них сразу удаляются. ОК, гугл.
+Выяснение отношений в течение двух часов приводит к осознанию того, что:
+  * Я рыжий (у коллег данная проблема не задокументирована)
+  * Увеличение квоты требует перевода на платный аккаунт и корпорация добра снова побеждает со счетом 2:0, а я просто уменьшаю количество экземляров, кладу изменения в мейкфайл и нигде (!) не документирую это. А что?
+
+## SSH-доступ
+Проверяем доступ по ssh:
+```gcloud compute ssh controller-0```
+В процессе создается пара ключей , пропагируется ))) на облако и мы заходим в машину. Скукота
+
+## Создание CA и генерация TLS сертификатов
+  * Параметры CA:
+```
+cat > ca-config.json <<EOF
+{
+  "signing": {
+    "default": {
+      "expiry": "8760h"
+    },
+    "profiles": {
+      "kubernetes": {
+        "usages": ["signing", "key encipherment", "server auth", "client auth"],
+        "expiry": "8760h"
+      }
+    }
+  }
+}
+EOF
+```
+  * Параметры запроса (Орегон, ага)
+```
+cat > ca-csr.json <<EOF
+{
+  "CN": "Kubernetes",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "Kubernetes",
+      "OU": "CA",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+```
+  * Собственно, генерация
+```cfssl gencert -initca ca-csr.json | cfssljson -bare ca```
+
+### Сертификаты клиента и сервера:
+
+```
+{
+
+cat > admin-csr.json <<EOF
+{
+  "CN": "admin",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland", #когда воротимся мы в портленд )
+      "O": "system:masters",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  admin-csr.json | cfssljson -bare admin
+
+}
+```
+
+В процессе генерации получаем ворнинг, но я перечитаю его потом. 
+```
+[WARNING] This certificate lacks a "hosts" field. This makes it unsuitable for
+websites. For more information see the Baseline Requirements for the Issuance and Management
+of Publicly-Trusted Certificates, v.1.1.6, from the CA/Browser Forum (https://cabforum.org);
+specifically, section 10.2.3 ("Information Requirements").
+```
+
+Результат:
+```
+$ ls -l
+итого 40
+-rw-r--r-- 1 ... 1033 янв 21 03:18 admin.csr
+-rw-r--r-- 1 ...  231 янв 21 03:18 admin-csr.json
+-rw------- 1 ... 1675 янв 21 03:18 admin-key.pem
+-rw-r--r-- 1 ... 1428 янв 21 03:18 admin.pem
+```
+
+## The Kubelet Client Certificates

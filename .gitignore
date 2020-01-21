@@ -18,4 +18,4 @@ jdauphant.nginx
 *.old
 *-local-ops.sh
 .env
-
+monitoring/mongodb_exporter/
