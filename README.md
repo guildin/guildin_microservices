@@ -15,6 +15,12 @@ guildin microservices repository
 | [Gitlab CI 1](#gitlab-ci-1) | [CI/CD Pipeline](#ci/cd-pipeline) | [GCI1 Окружения](#gci1-окружения) | [GCI Задание Ж](#gci-задание-ж) |
 | --- | --- | --- | --- |
 | [Monitoring-1](#monitoring-1) | [Запуск Prometheus](#запуск-prometheus) | [Образы микросервисов](#образы-микросервисов) | [M1 Задание Ж](#m1-задание-ж) |
+| --- | --- | --- | --- |
+| [Monitoring-2](#monitoring-2) | [M2 Визуализация метрик: Grafana](#m2-визуализация-метрик-grafana) | [M2 Сбор метрик бизнес-логики](#m2-сбор-метрик-бизнес-логики) | [M2 Задания Ж](#m2-задания-ж) |
+| --- | --- | --- | --- |
+| [Logging-1](#logging-1) | [L1-Fluentd](#l1-fluentd) | [L1 Структурированные логи](#L1-структурированные-логи) | [L1-Kibana](#l1-kibana) |
+| --- | --- | --- | --- |
+| [Kubernetes-1](#kubernetes-1) | [TODO](#todo) | [TODO](#todo) | [TODO](#todo) |
 
 
 # Docker-2
@@ -1925,7 +1931,7 @@ try: добавим в описание контейнера cAdvisor сеть b
 После этого прометей получит доступ к кАдвизору. Однако контейнеры, описанные в docker-compose.yml останутся в другой сети. Следовательно, распределение по проектам в данном случае не подходит.
 Если вернуть все на место, коммутация между сервисами обоих групп восттановится, но при запуске контейнеров все равно будет выдаваться предупреждение, которое можно подавить с помощью переменной окружения ```COMPOSE_IGNORE_ORPHANS=True```. Однако, в проде это может выйти боком.
 
-## Визуализация метрик: Grafana
+## M2 Визуализация метрик: Grafana
 
 Добавим в docker-compose-monitoring.yml:
 ```
@@ -2016,7 +2022,7 @@ gcloud compute firewall-rules create tcp3000 \
 ```histogram_quantile(0.95, sum(rate(ui_request_latency_seconds_bucket[5m])) by (le))```
 Сохраним настройки дашборда в файл: ```monitoring/grafana/dashboards/UI_Service_Monitoring.json```
 
-## М2 Сбор метрик бизнес-логики
+## M2 Сбор метрик бизнес-логики
 Мониторинг бизнес-логики
 Ранее были добавлены счетчики количества постов и комментариев
   * post_count
@@ -2197,7 +2203,7 @@ gcloud compute firewall-rules create docker-metrics-experimental \
   * Kibana (для визуализации)
 Однако для агрегации логов вместо Logstash мы будем использовать Fluentd, таким образом получая еще одно популярное сочетание этих инструментов, получившее название EFK
 
-## Fluentd
+## L1-Fluentd
 Fluentd может использоваться для отправки, агрегации и преобразования лог-сообщений. Мы будем использовать Fluentd для агрегации (сбора в одной месте) и
 парсинга логов сервисов нашего приложения.
 Создадим образ Fluentd с нужной нам конфигурацией: ```mkdir logging && mkdir logging/fluentd && vim Dockerfile```
@@ -2242,7 +2248,7 @@ fluent.conf:
 ```
 Соберем образ для fluentd и добавим рецепт в Makefile (TODO!)
 
-## Структурированные логи
+## L1 Структурированные логи
 Логи должны иметь заданную (единую) структуру и содержать необходимую для нормальной эксплуатации данного сервиса информацию о его работе
 Лог-сообщения также должны иметь понятный для выбранной системы логирования формат, чтобы избежать ненужной траты ресурсов
 на преобразование данных в нужный вид.
@@ -2260,7 +2266,7 @@ post-service | {"event": "post_create", "level": "info", "message": "Successfull
 ```
 Каждое событие, связанное с работой нашего приложения логируется в JSON формате и имеет нужную нам структуру: тип события (event), сообщение (message), переданные функции параметры (params), имя сервиса (service) и др.
 
-# Отправка логов во Fluentd
+### Отправка логов во Fluentd
 Как отмечалось на лекции, по умолчанию Docker контейнерами используется json-file драйвер для логирования информации, которая пишется сервисом внутри контейнера в stdout (и stderr).
 Для отправки логов во Fluentd используем docker драйвер [fluentd](https://docs.docker.com/engine/admin/logging/fluentd/)
 
@@ -2271,7 +2277,8 @@ $ docker-compose down
 $ docker-compose up -d
 ```
 Создадим несколько постов в приложении.
-## Kibana
+
+## L1-Kibana
 Kibana - инструмент для визуализации и анализа логов от компании Elastic.
 Откроем WEB-интерфейс Kibana для просмотра собранных в ElasticSearch логов Post-сервиса (kibana слушает на порту 5601)
 Но сначала:
@@ -2516,9 +2523,7 @@ ENV COMMENT_DATABASE comments
   * вставим их в докерфайл, опустим сервисы, пересоберем comment, поднимем сервисы. 
   * Profit!  
 
-## L1 Распределенный трейсинг
-
-## Zipkin
+## L1 Распределенный трейсинг. Zipkin
   * Добавим в compose-файл для сервисов логирования сервис распределенного трейсинга Zipkin:
 ```
   zipkin:
@@ -2541,3 +2546,699 @@ ENV COMMENT_DATABASE comments
  синие полоски со временем называются span и представляют собой одну операцию, которая произошла при обработке запроса. Набор span-ов называется
 трейсом. Суммарное время обработки нашего запроса равно верхнему span-у, который включает в себя время всех span-ов, расположенных под ним.
 
+
+# Kubernetes-1
+
+Создадим директорию kubernetes и поместим в нее файлы манифестов:
+  * post-deployment.yml [gist](https://gist.githubusercontent.com/chromko/d90b18ed9fac3eba9d19a72deec5d346/raw/dd4261dfb8e1b190f9b7a3d2dca6ce349976052b/gistfile1.txt)
+  * ui-deployment.yml
+  * comment-deployment.yml
+  * mongo-deployment.yml
+
+  ## Kubernetes The Hard Way
+  (больше пафоса!)
+
+  [Kubernetes The Hard Way Келси Хайтауэра](https://github.com/kelseyhightower/kubernetes-the-hard-way)
+
+  ### K1 Client Tools
+Установка (добавил в Makefile)
+```
+client_tools:
+      wget -q --show-progress --https-only --timestamping \
+              https://storage.googleapis.com/kubernetes-the-hard-way/cfssl/linux/cfssl \
+              https://storage.googleapis.com/kubernetes-the-hard-way/cfssl/linux/cfssljson
+      chmod +x cfssl cfssljson
+      sudo mv cfssl cfssljson /usr/local/bin/
+```
+
+Kubectl:
+```
+wget https://storage.googleapis.com/kubernetes-release/release/v1.15.3/bin/linux/amd64/kubectl
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+
+```
+Версия добавлена в .env, код в Makefile
+
+Описание VPC-сети в GCP 
+```
+gcloud compute networks create kubernetes-the-hard-way --subnet-mode custom
+gcloud compute networks subnets create kubernetes \
+  --network kubernetes-the-hard-way \
+  --range 10.240.0.0/24
+gcloud compute firewall-rules create kubernetes-the-hard-way-allow-internal \
+  --allow tcp,udp,icmp \
+  --network kubernetes-the-hard-way \
+  --source-ranges 10.240.0.0/24,10.200.0.0/16
+gcloud compute firewall-rules create kubernetes-the-hard-way-allow-external \
+  --allow tcp:22,tcp:6443,icmp \
+  --network kubernetes-the-hard-way \
+  --source-ranges 0.0.0.0/0
+  gcloud compute addresses create kubernetes-the-hard-way \
+  --region $(gcloud config get-value compute/region)
+```
+
+Проверка накрученного (VPC)
+```
+gcloud compute networks list
+gcloud compute firewall-rules list --filter="network:kubernetes-the-hard-way"
+gcloud compute addresses list --filter="name=('kubernetes-the-hard-way')"
+```
+
+Описание контроллеров:
+```
+for i in 0 1 2; do
+  gcloud compute instances create controller-${i} \
+    --async \
+    --boot-disk-size 200GB \
+    --can-ip-forward \
+    --image-family ubuntu-1804-lts \
+    --image-project ubuntu-os-cloud \
+    --machine-type n1-standard-1 \
+    --private-network-ip 10.240.0.1${i} \
+    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
+    --subnet kubernetes \
+    --tags kubernetes-the-hard-way,controller
+done
+```
+
+Kubernetes Workers
+```
+for i in 0 1 2; do
+  gcloud compute instances create worker-${i} \
+    --async \
+    --boot-disk-size 200GB \
+    --can-ip-forward \
+    --image-family ubuntu-1804-lts \
+    --image-project ubuntu-os-cloud \
+    --machine-type n1-standard-1 \
+    --metadata pod-cidr=10.200.${i}.0/24 \
+    --private-network-ip 10.240.0.2${i} \
+    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
+    --subnet kubernetes \
+    --tags kubernetes-the-hard-way,worker
+done
+```
+
+## 7 процентов людей и иных представителей человечекой расы:
+...6 экземпляров создается, 2 из них сразу удаляются. ОК, гугл.
+Выяснение отношений в течение двух часов приводит к осознанию того, что:
+  * Я рыжий (у коллег данная проблема не задокументирована)
+  * Увеличение квоты требует перевода на платный аккаунт и корпорация добра снова побеждает со счетом 2:0, а я просто уменьшаю количество экземляров, кладу изменения в мейкфайл и нигде (!) не документирую это. А что?
+
+## SSH-доступ
+Проверяем доступ по ssh:
+```gcloud compute ssh controller-0```
+В процессе создается пара ключей , пропагируется ))) на облако и мы заходим в машину. Скукота
+
+## Создание CA и генерация TLS сертификатов
+  * Параметры CA:
+```
+cat > ca-config.json <<EOF
+{
+  "signing": {
+    "default": {
+      "expiry": "8760h"
+    },
+    "profiles": {
+      "kubernetes": {
+        "usages": ["signing", "key encipherment", "server auth", "client auth"],
+        "expiry": "8760h"
+      }
+    }
+  }
+}
+EOF
+```
+  * Параметры запроса (Орегон, ага)
+```
+cat > ca-csr.json <<EOF
+{
+  "CN": "Kubernetes",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "Kubernetes",
+      "OU": "CA",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+```
+  * Собственно, генерация
+```cfssl gencert -initca ca-csr.json | cfssljson -bare ca```
+
+### Сертификаты клиента и сервера:
+
+```
+{
+
+cat > admin-csr.json <<EOF
+{
+  "CN": "admin",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland", #когда воротимся мы в портленд )
+      "O": "system:masters",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  admin-csr.json | cfssljson -bare admin
+
+}
+```
+
+В процессе генерации получаем ворнинг, но я перечитаю его потом. 
+```
+[WARNING] This certificate lacks a "hosts" field. This makes it unsuitable for
+websites. For more information see the Baseline Requirements for the Issuance and Management
+of Publicly-Trusted Certificates, v.1.1.6, from the CA/Browser Forum (https://cabforum.org);
+specifically, section 10.2.3 ("Information Requirements").
+```
+
+Результат:
+```
+$ ls -l
+итого 40
+-rw-r--r-- 1 ... 1033 янв 21 03:18 admin.csr
+-rw-r--r-- 1 ...  231 янв 21 03:18 admin-csr.json
+-rw------- 1 ... 1675 янв 21 03:18 admin-key.pem
+-rw-r--r-- 1 ... 1428 янв 21 03:18 admin.pem
+```
+
+## The Kubelet Client Certificates
+Kubeletes осуществляет запросы к API k8s, используя кред, определяющий его как участника группы system:nodes и представляет именем вида system:node:имяНоды 
+Сгенерируем ключевую пару для каждого воркера:
+
+```
+for instance in worker-0 worker-1; do
+cat > ${instance}-csr.json <<EOF
+{
+  "CN": "system:node:${instance}",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "system:nodes",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+EXTERNAL_IP=$(gcloud compute instances describe ${instance} \
+  --format 'value(networkInterfaces[0].accessConfigs[0].natIP)')
+
+INTERNAL_IP=$(gcloud compute instances describe ${instance} \
+  --format 'value(networkInterfaces[0].networkIP)')
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -hostname=${instance},${EXTERNAL_IP},${INTERNAL_IP} \
+  -profile=kubernetes \
+  ${instance}-csr.json | cfssljson -bare ${instance}
+done
+```
+
+## The Controller Manager Client Certificate
+Сгенерируем ключевую пару для kube-controller-manager:
+
+```
+{
+
+cat > kube-controller-manager-csr.json <<EOF
+{
+  "CN": "system:kube-controller-manager",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "system:kube-controller-manager",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  kube-controller-manager-csr.json | cfssljson -bare kube-controller-manager
+}
+```
+
+## The Kube Proxy Client Certificate
+Сгенерируем ключевую пару для kube-proxy:
+
+```
+{
+
+cat > kube-proxy-csr.json <<EOF
+{
+  "CN": "system:kube-proxy",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "system:node-proxier",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  kube-proxy-csr.json | cfssljson -bare kube-proxy
+
+}
+```
+
+## The Scheduler Client Certificate
+Сгенерируем ключевую пару для kube-scheduler:
+
+```
+{
+
+cat > kube-scheduler-csr.json <<EOF
+{
+  "CN": "system:kube-scheduler",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "system:kube-scheduler",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  kube-scheduler-csr.json | cfssljson -bare kube-scheduler
+
+}
+```
+
+## The Kubernetes API Server Certificate
+Сгенерируем ключевую пару для API сервера k8s:
+
+```
+{
+
+KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe kubernetes-the-hard-way \
+  --region $(gcloud config get-value compute/region) \
+  --format 'value(address)')
+
+KUBERNETES_HOSTNAMES=kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local
+
+cat > kubernetes-csr.json <<EOF
+{
+  "CN": "kubernetes",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "Kubernetes",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -hostname=10.32.0.1,10.240.0.10,10.240.0.11,10.240.0.12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  -profile=kubernetes \
+  kubernetes-csr.json | cfssljson -bare kubernetes
+
+}
+```
+Серверу API k8s автоматически назначается имя DNS, ссылающееся на первый узел _внутренней_ сети, зарезервированной для кластера.
+
+## The Service Account Key Pair
+```
+{
+
+cat > service-account-csr.json <<EOF
+{
+  "CN": "service-accounts",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "US",
+      "L": "Portland",
+      "O": "Kubernetes",
+      "OU": "Kubernetes The Hard Way",
+      "ST": "Oregon"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  service-account-csr.json | cfssljson -bare service-account
+
+}
+```
+
+Распространим сертификаты на созданные экземпляры:
+```
+for instance in worker-0 worker-1 worker-2; do
+  gcloud compute scp ca.pem ${instance}-key.pem ${instance}.pem ${instance}:~/
+done
+```
+...
+```
+for instance in controller-0 controller-1 controller-2; do
+  gcloud compute scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+    service-account-key.pem service-account.pem ${instance}:~/
+done
+```
+
+## Генерация файлов конфигурации для аутентикации Kubernetes
+Client Authentication Configs: генерация kubeconfig-файлов для controller manager, kubelet, kube-proxy, scheduler clients и пользователя admin.
+
+"вспомним" публичный адрес kubernetes-the-hard-way
+```
+KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe kubernetes-the-hard-way \
+  --region $(gcloud config get-value compute/region) \
+  --format 'value(address)')
+```
+### The kubelet Kubernetes Configuration File
+```
+for instance in worker-0 worker-1; do
+  kubectl config set-cluster kubernetes-the-hard-way \
+    --certificate-authority=ca.pem \
+    --embed-certs=true \
+    --server=https://${KUBERNETES_PUBLIC_ADDRESS}:6443 \
+    --kubeconfig=${instance}.kubeconfig
+
+  kubectl config set-credentials system:node:${instance} \
+    --client-certificate=${instance}.pem \
+    --client-key=${instance}-key.pem \
+    --embed-certs=true \
+    --kubeconfig=${instance}.kubeconfig
+
+  kubectl config set-context default \
+    --cluster=kubernetes-the-hard-way \
+    --user=system:node:${instance} \
+    --kubeconfig=${instance}.kubeconfig
+
+  kubectl config use-context default --kubeconfig=${instance}.kubeconfig
+done
+```
+
+### The kube-proxy Kubernetes Configuration File
+```
+{
+  kubectl config set-cluster kubernetes-the-hard-way \
+    --certificate-authority=ca.pem \
+    --embed-certs=true \
+    --server=https://${KUBERNETES_PUBLIC_ADDRESS}:6443 \
+    --kubeconfig=kube-proxy.kubeconfig
+
+  kubectl config set-credentials system:kube-proxy \
+    --client-certificate=kube-proxy.pem \
+    --client-key=kube-proxy-key.pem \
+    --embed-certs=true \
+    --kubeconfig=kube-proxy.kubeconfig
+
+  kubectl config set-context default \
+    --cluster=kubernetes-the-hard-way \
+    --user=system:kube-proxy \
+    --kubeconfig=kube-proxy.kubeconfig
+
+  kubectl config use-context default --kubeconfig=kube-proxy.kubeconfig
+}
+```
+
+### The kube-controller-manager Kubernetes Configuration File
+```
+{
+  kubectl config set-cluster kubernetes-the-hard-way \
+    --certificate-authority=ca.pem \
+    --embed-certs=true \
+    --server=https://127.0.0.1:6443 \
+    --kubeconfig=kube-controller-manager.kubeconfig
+
+  kubectl config set-credentials system:kube-controller-manager \
+    --client-certificate=kube-controller-manager.pem \
+    --client-key=kube-controller-manager-key.pem \
+    --embed-certs=true \
+    --kubeconfig=kube-controller-manager.kubeconfig
+
+  kubectl config set-context default \
+    --cluster=kubernetes-the-hard-way \
+    --user=system:kube-controller-manager \
+    --kubeconfig=kube-controller-manager.kubeconfig
+
+  kubectl config use-context default --kubeconfig=kube-controller-manager.kubeconfig
+}
+```
+
+### The kube-scheduler Kubernetes Configuration File
+```
+{
+  kubectl config set-cluster kubernetes-the-hard-way \
+    --certificate-authority=ca.pem \
+    --embed-certs=true \
+    --server=https://127.0.0.1:6443 \
+    --kubeconfig=kube-scheduler.kubeconfig
+
+  kubectl config set-credentials system:kube-scheduler \
+    --client-certificate=kube-scheduler.pem \
+    --client-key=kube-scheduler-key.pem \
+    --embed-certs=true \
+    --kubeconfig=kube-scheduler.kubeconfig
+
+  kubectl config set-context default \
+    --cluster=kubernetes-the-hard-way \
+    --user=system:kube-scheduler \
+    --kubeconfig=kube-scheduler.kubeconfig
+
+  kubectl config use-context default --kubeconfig=kube-scheduler.kubeconfig
+}
+```
+
+### The admin Kubernetes Configuration File
+```
+{
+  kubectl config set-cluster kubernetes-the-hard-way \
+    --certificate-authority=ca.pem \
+    --embed-certs=true \
+    --server=https://127.0.0.1:6443 \
+    --kubeconfig=admin.kubeconfig
+
+  kubectl config set-credentials admin \
+    --client-certificate=admin.pem \
+    --client-key=admin-key.pem \
+    --embed-certs=true \
+    --kubeconfig=admin.kubeconfig
+
+  kubectl config set-context default \
+    --cluster=kubernetes-the-hard-way \
+    --user=admin \
+    --kubeconfig=admin.kubeconfig
+
+  kubectl config use-context default --kubeconfig=admin.kubeconfig
+}
+```
+
+Отправим файлы конфигурации на соответствующие ноды:
+```
+for instance in worker-0 worker-1 worker-2; do
+  gcloud compute scp ${instance}.kubeconfig kube-proxy.kubeconfig ${instance}:~/
+done
+```
+...
+```
+for instance in controller-0 controller-1 controller-2; do
+  gcloud compute scp admin.kubeconfig kube-controller-manager.kubeconfig kube-scheduler.kubeconfig ${instance}:~/
+done
+```
+
+## Generating the Data Encryption Config and Key
+Kubernetes хранит различные данные, такие как состояние кластера, кофигурации приложений, пароли. Кроме того, K8s поддерживает механизм шифрования данных кластера. 
+Сгенерируем ключ шифрования и конфигурацию шифрования паролей K8s.
+
+## The Encryption Key
+Сгенерируем ключ шифрования:
+```ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)```
+Также создадим файл encryption-config.yaml с этим ключом шифрования:
+```
+cat > encryption-config.yaml <<EOF
+kind: EncryptionConfig
+apiVersion: v1
+resources:
+  - resources:
+      - secrets
+    providers:
+      - aescbc:
+          keys:
+            - name: key1
+              secret: ${ENCRYPTION_KEY}
+      - identity: {}
+EOF
+```
+Отправим этот файл на каждый из контроллеров:
+```
+for instance in controller-0 controller-1; do
+  gcloud compute scp encryption-config.yaml ${instance}:~/
+done
+```
+
+## настройка etcd кластера
+состояние кластера Kubernetes хранится в etcd. 
+Залогинимся на каждой ноде контроллера (используем tmux для параллельного ввода команд, не знаю чем ctrl-b + стрелки отличаются от alt-tab, но уважим автора):
+```gcloud compute ssh controller-0```
+
+  * Скачаем бинари:
+```
+wget -q --show-progress --https-only --timestamping \
+  "https://github.com/etcd-io/etcd/releases/download/v3.4.0/etcd-v3.4.0-linux-amd64.tar.gz"
+```
+
+  * Установим их: 
+```
+{
+  tar -xvf etcd-v3.4.0-linux-amd64.tar.gz
+  sudo mv etcd-v3.4.0-linux-amd64/etcd* /usr/local/bin/
+}
+```
+  * Сконфигурируем сервер etcd (установим сертификаты, получим данные о внутреннем адресе и на основе их сгенерируем unit systemd):
+```
+{
+  sudo mkdir -p /etc/etcd /var/lib/etcd
+  sudo cp ca.pem kubernetes-key.pem kubernetes.pem /etc/etcd/
+}
+INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" \
+  http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
+ETCD_NAME=$(hostname -s)
+
+cat <<EOF | sudo tee /etc/systemd/system/etcd.service
+[Unit]
+Description=etcd
+Documentation=https://github.com/coreos
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/etcd \\
+  --name ${ETCD_NAME} \\
+  --cert-file=/etc/etcd/kubernetes.pem \\
+  --key-file=/etc/etcd/kubernetes-key.pem \\
+  --peer-cert-file=/etc/etcd/kubernetes.pem \\
+  --peer-key-file=/etc/etcd/kubernetes-key.pem \\
+  --trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-client-cert-auth \\
+  --client-cert-auth \\
+  --initial-advertise-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
+  --advertise-client-urls https://${INTERNAL_IP}:2379 \\
+  --initial-cluster-token etcd-cluster-0 \\
+  --initial-cluster controller-0=https://10.240.0.10:2380,controller-1=https://10.240.0.11:2380,controller-2=https://10.240.0.12:2380 \\
+  --initial-cluster-state new \\
+  --data-dir=/var/lib/etcd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+```
+  * Запустим сервер etcd:
+```
+{
+  sudo systemctl daemon-reload
+  sudo systemctl enable etcd
+  sudo systemctl start etcd
+}
+```
+
+Выведем список членов кластера:
+```
+sudo ETCDCTL_API=3 etcdctl member list \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/etcd/ca.pem \
+  --cert=/etc/etcd/kubernetes.pem \
+  --key=/etc/etcd/kubernetes-key.pem
+```
+
+## Инициализация Kubernetes Control Plane
+
+Произведем начальную загрузку Kubernetes control plane на 3х (на 2х) экземплярах ВМ и сконфигурируем high availability. 
+Также будет создан внешний балансировщик нагрузки, предоставлющий доступ к API серверам k8s удаленных клиентов. На каждой ноде будут развернуты следующие компоненты: Kubernetes API Server, Scheduler, and Controller Manager.
+
+### Prerequisites
+Выполним команды на каждом экземпляре контроллера. На каждый из них нужно будет залогиниться через gcloud.
+```
+
+```
